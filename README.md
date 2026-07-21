@@ -143,41 +143,89 @@ security review. Before this touches real customer data:
   enterprise customers. No stack or architecture choice substitutes for
   that step.
 
+## 8. Connect the front end
+
+The front end (`index.html`) is now wired to this API for real:
+
+- **Login** calls `POST /auth/login` and stores the returned session token
+  in the browser's `localStorage`.
+- **Contact form** calls `POST /contact`, which stores the submission and
+  emails it to whoever `CONTACT_EMAIL_TO` is set to in `.env` (defaults to
+  `saileshathreya@autostrat.net`).
+- **The dashboard** (shown after login) calls all five agents directly:
+  add an initiative and click "Run Prioritize", paste text and click "Run
+  Discover", add a tracked asset and click "Run Sustain", check off
+  initiatives and click "Draft roadmap" (Align), or click "Generate brief"
+  (Brief). Every action shows up in the Audit Log tab.
+
+To try it:
+
+1. Make sure the server is running (`uvicorn app.main:app --reload`) and
+   you've run `python seed_data.py` at least once.
+2. Open `index.html` directly in a browser (double-click it, or drag it into
+   a browser window).
+3. Click "Log In" and use the demo credentials printed by `seed_data.py`
+   (`demo@acme-industrial.test` / `demo-password-123`).
+
+If your browser blocks the request as a CORS error, check that
+`CORS_ORIGINS` in `.env` includes the origin you're loading the page from
+(the default `*` should just work for local file/dev use — restrict it once
+you deploy the front end to a real domain).
+
+If you deploy the API somewhere other than `http://127.0.0.1:8000`, update
+the `API_BASE` constant near the top of the `<script>` tag in `index.html`.
+
+### Email delivery for the contact form
+
+By default, `SMTP_HOST` is empty, so contact form submissions are saved to
+the database but no email actually goes out (a warning is logged instead) —
+useful while developing. To make the email real, fill in the `SMTP_*`
+values in `.env`. For AWS SES specifically (the site already promises
+AWS-backed infrastructure): create SES SMTP credentials in the AWS console,
+verify the sending domain/address, and set `SMTP_HOST` to your region's SES
+SMTP endpoint (e.g. `email-smtp.us-east-1.amazonaws.com`) with port `587`.
+
+---
+
+## Deploying to AWS
+
+Two guides, depending on where you're at:
+
+- **`DEPLOY-LIGHTSAIL.md`** — the cheap, simple path for a proof-of-concept
+  with no real traffic yet (~$5/month, one small server, no database
+  server to manage). Start here.
+- **`DEPLOY.md`** — App Runner + RDS, for once you have real customers and
+  need auto-scaling and a managed database. The Lightsail guide explains
+  exactly how to move from one to the other when you're ready — it's a
+  config change, not a rewrite.
+
 ## Project layout
 
 ```
 app/
-  main.py            FastAPI app, wires up all routers
+  main.py            FastAPI app, wires up all routers, CORS
   config.py           environment/config loading
   database.py          DB engine + session setup
   models.py             SQLAlchemy tables (the actual data model)
   schemas.py              Pydantic request/response + agent output contracts
-  auth.py                   API key -> tenant resolution
-  tenant_scope.py            centralized tenant-scoped query helpers
+  auth.py                   API key / session token -> tenant resolution
+  security.py                password hashing (stdlib only)
+  email_service.py            SMTP email sending (stdlib only)
+  tenant_scope.py               centralized tenant-scoped query helpers
   agents/
-    base.py                    shared Claude-calling + audit logging logic
-    prioritize.py                Loom Prioritize
-    discover.py                    Loom Discover
-    align.py                         Loom Align
-    sustain.py                         Loom Sustain
-    brief.py                             Loom Brief
-  routers/            one file per API resource (initiatives, signals, assets, roadmaps, briefs, audit, tenants)
+    base.py                       shared Claude-calling + audit logging logic
+    prioritize.py                   Loom Prioritize
+    discover.py                       Loom Discover
+    align.py                            Loom Align
+    sustain.py                            Loom Sustain
+    brief.py                                Loom Brief
+  routers/            one file per API resource:
+                       auth (login/logout/user creation), contact,
+                       initiatives, signals, assets, roadmaps, briefs,
+                       audit, tenants
 tests/
   test_agents_and_isolation.py    tenant isolation + agent tests, mocked Claude calls
-seed_data.py           creates a demo tenant + sample data
+  test_auth_and_contact.py          login, sessions, and contact-form tests, mocked email
+seed_data.py           creates a demo tenant + login user + sample data
+index.html              the front end, now calling this API directly
 ```
-
-## Connecting the front end
-
-The `index.html` front end you already have is currently a static demo (the
-login form and contact form don't call anything real). To connect it:
-- The contact form (`handleContact`) would POST to a new `/contact` endpoint
-  you'd add here, which emails or stores the message.
-- The login form (`handleLogin`) is a placeholder for real authentication —
-  once you add SSO or a proper login flow, that's what wires in here.
-- Anything showing live agent output (a dashboard, a scored backlog view)
-  would call the endpoints in the table above with `fetch()`, using the
-  tenant's API key or session token.
-
-That front-end wiring is a separate, smaller task once you're ready for it
-— happy to help with that next.

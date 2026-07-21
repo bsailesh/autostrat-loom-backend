@@ -55,7 +55,45 @@ class ApiKey(Base):
     role: Mapped[str] = mapped_column(String, default="member")  # "admin" | "member"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
+    # Set only for keys minted by /auth/login ("session tokens"). Long-lived
+    # keys created via /admin/tenants (or for machine-to-machine use) leave
+    # both null and never expire.
+    user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     tenant: Mapped["Tenant"] = relationship(back_populates="api_keys")
+
+
+class User(Base):
+    """A human who can log in to a tenant's workspace via the front end."""
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, default="member")  # "admin" | "member"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class ContactMessage(Base):
+    """
+    A submission from the public contact form. Not tenant-scoped — the
+    person submitting it isn't a customer yet. Stored regardless of whether
+    the notification email succeeds, so a submission is never silently lost
+    to an SMTP outage.
+    """
+    __tablename__ = "contact_messages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    full_name: Mapped[str] = mapped_column(String)
+    work_email: Mapped[str] = mapped_column(String)
+    company: Mapped[str] = mapped_column(String, default="")
+    role: Mapped[str] = mapped_column(String, default="")
+    interest: Mapped[str] = mapped_column(String, default="")
+    message: Mapped[str] = mapped_column(Text)
+    email_sent: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
 class Initiative(Base):

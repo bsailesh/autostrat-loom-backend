@@ -12,6 +12,52 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+# ---------- Users / login ----------
+
+class UserCreate(BaseModel):
+    email: str
+    password: str = Field(min_length=8)
+    role: str = "member"
+
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    role: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    token: str
+    tenant_id: str
+    tenant_name: str
+    user_email: str
+    role: str
+    expires_at: datetime
+
+
+# ---------- Contact form ----------
+
+class ContactRequest(BaseModel):
+    full_name: str
+    work_email: str
+    company: str = ""
+    role: str = ""
+    interest: str = "Agent subscription"
+    message: str
+
+
+class ContactAck(BaseModel):
+    status: str = "received"
+
+
 # ---------- Tenants / auth ----------
 
 class TenantCreate(BaseModel):

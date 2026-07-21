@@ -7,10 +7,13 @@ Usage:
     1. Start the server: uvicorn app.main:app --reload
     2. In another terminal: python seed_data.py
 """
+import os
 import requests
 
-BASE_URL = "http://127.0.0.1:8000"
-ADMIN_KEY = "admin-dev-key-change-me"  # must match LOOM_ADMIN_KEYS in your .env
+# Defaults to your local dev server. To run this against production instead:
+#   LOOM_BASE_URL=https://api.autostrat.net LOOM_ADMIN_KEY=<your real admin key> python seed_data.py
+BASE_URL = os.environ.get("LOOM_BASE_URL", "http://127.0.0.1:8000")
+ADMIN_KEY = os.environ.get("LOOM_ADMIN_KEY", "admin-dev-key-change-me")
 
 
 def main():
@@ -29,7 +32,19 @@ def main():
 
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    # 2. Create a few sample initiatives
+    # 2. Create a login user for this tenant (used by the front-end login form)
+    demo_email = "demo@acme-industrial.test"
+    demo_password = "demo-password-123"
+    r = requests.post(
+        f"{BASE_URL}/admin/tenants/{tenant['id']}/users",
+        json={"email": demo_email, "password": demo_password, "role": "admin"},
+        headers=ADMIN_HEADERS,
+    )
+    r.raise_for_status()
+    print(f"Created login user: {demo_email} / {demo_password}")
+    print("Use these on the front end's login screen.\n")
+
+    # 3. Create a few sample initiatives
     sample_initiatives = [
         {
             "title": "Self-serve onboarding flow",
@@ -55,7 +70,7 @@ def main():
         initiative_ids.append(created["id"])
         print(f"Created initiative: {created['title']} (id={created['id']})")
 
-    # 3. Create a sample tracked asset
+    # 4. Create a sample tracked asset
     r = requests.post(
         f"{BASE_URL}/assets",
         json={
