@@ -1,0 +1,14 @@
+[Unit]
+Description=AutoStrat Loom API
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/autostrat-loom-backend
+EnvironmentFile=-/home/ubuntu/autostrat-loom-backend/.env
+ExecStart=/home/ubuntu/autostrat-loom-backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

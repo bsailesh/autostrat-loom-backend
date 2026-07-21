@@ -1,0 +1,10 @@
+# Caddy automatically gets and renews a free HTTPS certificate (via Let's
+# Encrypt) for this domain the moment it can reach it on ports 80/443 and
+# the domain's DNS points here. No certbot, no manual renewal, nothing else
+# to configure.
+#
+# Replace api.autostrat.net if you're using a different domain.
+
+api.autostrat.net {
+	reverse_proxy 127.0.0.1:8000
+}

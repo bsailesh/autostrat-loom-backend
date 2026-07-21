@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoStrat Loom — AI Agents for Product Strategy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#10151B;
+    --blueprint:#0F2A44;
+    --blueprint-2:#153A5C;
+    --line:#6FB4D6;
+    --line-dim:rgba(111,180,214,.32);
+    --paper:#FBFAF7;
+    --surface:#FFFFFF;
+    --muted:#5B6169;
+    --muted-lt:#8B929B;
+    --border:#E3E1DA;
+    --border-soft:#EDEBE5;
+    --copper:#C1712F;
+    --copper-dark:#A65D22;
+    --copper-soft:#F7EADD;
+
+    --growth:#2F8F6E;    --growth-soft:#E7F4EF;
+    --irad:#4A5FBF;      --irad-soft:#EBEDFA;
+    --custf:#B8862B;     --custf-soft:#F8F0DD;
+    --sustain:#1E7A8C;   --sustain-soft:#E4F1F3;
+    --obs:#B15E3D;       --obs-soft:#F7E9E2;
+
+    --f-display:'Space Grotesk', sans-serif;
+    --f-body:'IBM Plex Sans', sans-serif;
+    --f-mono:'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--f-body); -webkit-font-smoothing:antialiased; overflow-x:hidden;}
+  a{color:inherit;}
+  img,svg{display:block; max-width:100%;}
+  :focus-visible{outline:2px solid var(--copper); outline-offset:2px;}
+  ::selection{background:var(--copper); color:#fff;}
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important; scroll-behavior:auto !important;} }
+  p{margin:0;}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* reveal-on-scroll */
+  .reveal{opacity:0; transform:translateY(16px); transition:opacity .6s ease, transform .6s ease;}
+  .reveal.in{opacity:1; transform:translateY(0);}
+
+  /* ============ NAV ============ */
+  .nav{
+    position:sticky; top:0; z-index:40; background:rgba(15,42,68,.94); backdrop-filter:blur(8px);
+    border-bottom:1px solid rgba(111,180,214,.18);
+  }
+  .nav-inner{max-width:1240px; margin:0 auto; padding:15px 28px; display:flex; align-items:center; justify-content:space-between;}
+  .brand{display:flex; align-items:center; gap:10px; text-decoration:none;}
+  .brand-mark{width:27px; height:27px;}
+  .brand-text{font-family:var(--f-display); font-weight:700; font-size:18.5px; color:#fff; letter-spacing:-.01em;}
+  .brand-text .loom{color:var(--copper); margin-left:6px;}
+  .nav-links{display:flex; align-items:center; gap:26px;}
+  .nav-links a{color:#CFE3EE; font-size:13.5px; font-weight:500; text-decoration:none; white-space:nowrap;}
+  .nav-links a:hover{color:#fff;}
+  .nav-cta{display:flex; gap:10px; align-items:center;}
+  .btn{
+    font-family:var(--f-body); font-weight:600; font-size:13.5px; border-radius:7px; cursor:pointer;
+    padding:9px 18px; border:none; text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+    transition:transform .12s, background .15s, box-shadow .15s; white-space:nowrap;
+  }
+  .btn-copper{background:var(--copper); color:#fff;}
+  .btn-copper:hover{background:var(--copper-dark); transform:translateY(-1px);}
+  .btn-ghost-dark{background:transparent; color:#EAF3F8; border:1px solid rgba(234,243,248,.35);}
+  .btn-ghost-dark:hover{background:rgba(255,255,255,.08);}
+  .btn-ghost-light{background:transparent; color:var(--blueprint); border:1px solid var(--border);}
+  .btn-ghost-light:hover{background:var(--border-soft);}
+  .btn-lg{padding:13px 26px; font-size:14.5px;}
+  .hamburger{display:none; background:none; border:none; cursor:pointer; padding:6px; z-index:41;}
+  .hamburger span{display:block; width:22px; height:2px; background:#fff; margin:5px 0; transition:transform .2s, opacity .2s;}
+  .mobile-menu{
+    display:none; position:fixed; inset:0; background:var(--blueprint); z-index:35; padding:88px 28px 40px;
+    flex-direction:column; gap:4px;
+  }
+  .mobile-menu.open{display:flex;}
+  .mobile-menu a{color:#EAF3F8; font-family:var(--f-display); font-size:22px; font-weight:600; text-decoration:none; padding:14px 0; border-bottom:1px solid rgba(111,180,214,.15);}
+  .mobile-menu .mobile-ctas{margin-top:24px; display:flex; flex-direction:column; gap:12px;}
+  @media (max-width:900px){ .nav-links{display:none;} .nav-cta .btn-ghost-dark{display:none;} .hamburger{display:block;} }
+  @media (max-width:560px){ .nav-cta .btn-copper{padding:8px 14px; font-size:12.5px;} }
+
+  /* ============ HERO ============ */
+  .hero{position:relative; background:linear-gradient(180deg, var(--blueprint) 0%, var(--blueprint-2) 100%); color:#fff; overflow:hidden; padding:64px 28px 0;}
+  .hero::before{
+    content:""; position:absolute; inset:0; opacity:.45; pointer-events:none;
+    background-image:
+      repeating-linear-gradient(0deg, var(--line-dim) 0 1px, transparent 1px 64px),
+      repeating-linear-gradient(90deg, var(--line-dim) 0 1px, transparent 1px 64px);
+    mask-image:linear-gradient(180deg, rgba(0,0,0,.9), rgba(0,0,0,0) 88%);
+  }
+  .hero-inner{position:relative; max-width:1240px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:36px; align-items:center; padding-bottom:56px;}
+  .eyebrow{font-family:var(--f-mono); font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--line); display:flex; align-items:center; gap:10px; margin-bottom:18px;}
+  .eyebrow::before{content:""; width:22px; height:1px; background:var(--line);}
+  .hero h1{font-family:var(--f-display); font-weight:700; font-size:46px; line-height:1.1; margin:0 0 20px; letter-spacing:-.01em;}
+  .hero h1 span{color:var(--line);}
+  .hero p.lead{font-size:16.5px; line-height:1.65; color:#CFE3EE; max-width:520px; margin:0 0 30px;}
+  .hero-ctas{display:flex; gap:12px; flex-wrap:wrap;}
+  .hero-note{margin-top:24px; font-family:var(--f-mono); font-size:11px; color:#8FB6CB; letter-spacing:.03em;}
+  @media (max-width:940px){ .hero-inner{grid-template-columns:1fr; padding-bottom:36px;} .hero h1{font-size:33px;} }
+
+  /* ============ STAT STRIP ============ */
+  .stat-strip{background:var(--surface); border-bottom:1px solid var(--border-soft);}
+  .stat-grid{max-width:1240px; margin:0 auto; padding:34px 28px; display:grid; grid-template-columns:repeat(4,1fr); gap:24px;}
+  .stat-item{border-left:2px solid var(--border); padding-left:16px;}
+  .stat-item p{font-size:13px; color:var(--muted); line-height:1.5;}
+  @media (max-width:900px){ .stat-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:560px){ .stat-grid{grid-template-columns:1fr; gap:18px;} }
+
+  /* ============ SECTION SHELL ============ */
+  section.block{max-width:1240px; margin:0 auto; padding:84px 28px;}
+  .section-head{max-width:660px; margin-bottom:48px;}
+  .section-eyebrow{font-family:var(--f-mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--copper); margin-bottom:10px;}
+  .section-head h2{font-family:var(--f-display); font-size:30px; font-weight:700; margin:0 0 14px; letter-spacing:-.01em; line-height:1.2;}
+  .section-head p{color:var(--muted); font-size:15.5px; line-height:1.65;}
+  .center{text-align:center; margin-left:auto; margin-right:auto;}
+
+  /* ============ GAP CARDS ============ */
+  .gap-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:20px;}
+  .gap-card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:28px;}
+  .gap-card h3{font-family:var(--f-display); font-size:18px; font-weight:600; margin:0 0 10px; line-height:1.35;}
+  .gap-card p{font-size:14px; color:var(--muted); line-height:1.65;}
+  @media (max-width:760px){ .gap-grid{grid-template-columns:1fr;} }
+
+  /* ============ AGENTS ============ */
+  .agents-strip{background:var(--blueprint); color:#fff;}
+  .agent-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:14px;}
+  .agent-card{
+    background:rgba(255,255,255,.04); border:1px solid rgba(111,180,214,.22); border-radius:14px; padding:22px 18px;
+    border-top-width:4px; border-top-style:solid; display:flex; flex-direction:column; height:100%;
+  }
+  .agent-tag{font-family:var(--f-mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; font-weight:600; margin-bottom:12px;}
+  .agent-card h3{font-family:var(--f-display); font-size:16.5px; margin:0 0 10px; font-weight:600;}
+  .agent-card p{font-size:12.5px; color:#B9CFDA; line-height:1.6; margin-bottom:16px; flex:1;}
+  .agent-badge{font-family:var(--f-mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase; padding:4px 9px; border-radius:20px; display:inline-block; margin-bottom:14px; align-self:flex-start;}
+  .agent-link{font-size:12.5px; font-weight:600; text-decoration:none; display:flex; align-items:center; gap:5px;}
+  @media (max-width:1040px){ .agent-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:560px){ .agent-grid{grid-template-columns:1fr;} }
+
+  /* ============ HOW IT WORKS ============ */
+  .steps{display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--surface);}
+  .step{padding:30px 26px; border-right:1px solid var(--border-soft);}
+  .step:last-child{border-right:none;}
+  .step-num{font-family:var(--f-mono); font-size:11px; color:var(--copper); letter-spacing:.06em; margin-bottom:12px;}
+  .step h3{font-family:var(--f-display); font-size:16.5px; margin:0 0 8px; font-weight:600;}
+  .step p{font-size:13.5px; color:var(--muted); line-height:1.6;}
+  @media (max-width:760px){ .steps{grid-template-columns:1fr;} .step{border-right:none; border-bottom:1px solid var(--border-soft);} }
+
+  /* ============ PRICING ============ */
+  .price-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px;}
+  .price-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:32px 28px; display:flex; flex-direction:column;}
+  .price-card.featured{border-color:var(--copper); box-shadow:0 8px 30px rgba(193,113,47,.12); position:relative;}
+  .price-pill{position:absolute; top:-12px; left:28px; background:var(--copper); color:#fff; font-family:var(--f-mono); font-size:10px; letter-spacing:.05em; text-transform:uppercase; padding:5px 12px; border-radius:20px;}
+  .price-card h3{font-family:var(--f-display); font-size:19px; font-weight:600; margin:0 0 8px;}
+  .price-card .price-sub{font-size:13px; color:var(--muted); margin-bottom:22px; line-height:1.55;}
+  .price-card ul{list-style:none; margin:0 0 26px; padding:0; flex:1;}
+  .price-card li{font-size:13.5px; color:var(--ink); padding:8px 0; border-bottom:1px solid var(--border-soft); display:flex; gap:10px;}
+  .price-card li:last-child{border-bottom:none;}
+  .price-card li::before{content:"—"; color:var(--copper); font-weight:600; flex-shrink:0;}
+  @media (max-width:940px){ .price-grid{grid-template-columns:1fr;} }
+
+  /* ============ CONSULTING ============ */
+  .consult-block{background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:48px; display:grid; grid-template-columns:1.1fr .9fr; gap:40px; align-items:center;}
+  .consult-copy h2{font-family:var(--f-display); font-size:27px; margin:0 0 14px; font-weight:700;}
+  .consult-copy p{color:var(--muted); font-size:15px; line-height:1.65; margin-bottom:20px;}
+  .consult-list{display:flex; flex-direction:column; gap:12px; margin-bottom:24px;}
+  .consult-list-item{display:flex; gap:10px; font-size:13.5px; color:var(--ink);}
+  .consult-list-item .dot{width:6px; height:6px; border-radius:50%; background:var(--copper); margin-top:6px; flex-shrink:0;}
+  .consult-visual{background:var(--blueprint); border-radius:14px; padding:30px; color:#fff;}
+  .consult-visual .quote-mark{font-family:var(--f-display); font-size:44px; color:var(--line); line-height:1; margin-bottom:10px;}
+  .consult-visual p{font-size:14.5px; line-height:1.7; color:#CFE3EE;}
+  @media (max-width:860px){ .consult-block{grid-template-columns:1fr; padding:30px;} }
+
+  /* ============ TRUST / SECURITY ============ */
+  .trust-section{background:var(--blueprint); color:#fff;}
+  .trust-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px;}
+  .trust-item{background:rgba(255,255,255,.04); border:1px solid rgba(111,180,214,.2); border-radius:12px; padding:22px 24px; display:flex; gap:16px; align-items:flex-start;}
+  .trust-icon{width:22px; height:22px; flex-shrink:0; color:var(--line); margin-top:2px;}
+  .trust-item h4{font-family:var(--f-display); font-size:15px; margin:0 0 6px; font-weight:600;}
+  .trust-item p{font-size:13px; color:#B9CFDA; line-height:1.6;}
+  @media (max-width:760px){ .trust-grid{grid-template-columns:1fr;} }
+
+  /* ============ CONTACT ============ */
+  .contact-block{background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:44px; display:grid; grid-template-columns:1fr 1fr; gap:40px;}
+  .contact-copy h2{font-family:var(--f-display); font-size:26px; margin:0 0 14px; font-weight:700;}
+  .contact-copy p{color:var(--muted); font-size:14.5px; line-height:1.65; margin-bottom:16px;}
+  .contact-copy .contact-alt{font-size:13px; color:var(--muted); margin-top:24px; padding-top:20px; border-top:1px solid var(--border-soft);}
+  .form-grid{display:grid; gap:13px;}
+  .form-row-2{display:grid; grid-template-columns:1fr 1fr; gap:13px;}
+  .form-grid input, .form-grid select, .form-grid textarea{
+    width:100%; padding:11px 13px; border:1px solid var(--border); border-radius:8px; font-family:var(--f-body);
+    font-size:13.5px; color:var(--ink); background:var(--paper);
+  }
+  .form-grid textarea{resize:vertical; min-height:80px;}
+  .form-grid label{font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px; display:block;}
+  .form-note{font-family:var(--f-mono); font-size:10.5px; color:var(--muted);}
+  @media (max-width:860px){ .contact-block{grid-template-columns:1fr; padding:28px;} .form-row-2{grid-template-columns:1fr;} }
+
+  /* ============ FOOTER ============ */
+  footer{background:var(--blueprint); color:#B9CFDA;}
+  .footer-inner{max-width:1240px; margin:0 auto; padding:52px 28px 28px; display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:36px;}
+  .footer-inner h4{font-family:var(--f-mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#7FA8BE; margin:0 0 14px;}
+  .footer-inner p{font-size:13px; line-height:1.6; color:#9FBECE; max-width:320px;}
+  .footer-inner a{display:block; font-size:13px; color:#CFE3EE; text-decoration:none; margin-bottom:9px; cursor:pointer;}
+  .footer-inner a:hover{color:#fff;}
+  .footer-bottom{border-top:1px solid rgba(111,180,214,.18); padding:18px 28px; text-align:center; font-family:var(--f-mono); font-size:11px; color:#6E93A6;}
+  @media (max-width:760px){ .footer-inner{grid-template-columns:1fr 1fr; gap:28px;} }
+  @media (max-width:480px){ .footer-inner{grid-template-columns:1fr;} }
+
+  /* ============ LOGIN VIEW ============ */
+  .login-shell{min-height:100vh; background:linear-gradient(180deg, var(--blueprint) 0%, var(--blueprint-2) 100%); position:relative; display:flex; align-items:center; justify-content:center; padding:40px 20px;}
+  .login-shell::before{content:""; position:absolute; inset:0; opacity:.4; pointer-events:none; background-image:repeating-linear-gradient(0deg, var(--line-dim) 0 1px, transparent 1px 64px), repeating-linear-gradient(90deg, var(--line-dim) 0 1px, transparent 1px 64px);}
+  .login-card{position:relative; z-index:1; width:100%; max-width:380px; background:var(--surface); border-radius:14px; padding:36px 32px; box-shadow:0 20px 60px rgba(0,0,0,.35);}
+  .login-brand{display:flex; align-items:center; gap:9px; margin-bottom:26px;}
+  .login-card h2{font-family:var(--f-display); font-size:19px; margin:0 0 6px; font-weight:700; color:var(--ink);}
+  .login-card > p.sub{font-size:13px; color:var(--muted); margin:0 0 24px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:7px;}
+  .field input{width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-family:var(--f-body); font-size:14px; color:var(--ink);}
+  .field input:focus{border-color:var(--sustain);}
+  .login-row{display:flex; justify-content:space-between; align-items:center; margin:2px 0 20px;}
+  .login-row a{font-size:12.5px; color:var(--sustain); text-decoration:none;}
+  .login-submit{width:100%; padding:12px; margin-bottom:14px;}
+  .login-alt{text-align:center; font-size:12.5px; color:var(--muted);}
+  .login-alt a{color:var(--copper); text-decoration:none; font-weight:600; cursor:pointer;}
+  .login-disclaimer{margin-top:22px; padding-top:16px; border-top:1px solid var(--border-soft); font-family:var(--f-mono); font-size:10.5px; color:var(--muted); line-height:1.6; text-align:center;}
+  .back-home{position:fixed; top:22px; left:24px; z-index:2;}
+  .back-home a{color:#CFE3EE; font-size:13px; text-decoration:none; font-family:var(--f-mono); display:flex; align-items:center; gap:6px; cursor:pointer;}
+  .back-home a:hover{color:#fff;}
+
+  /* ============ DASHBOARD VIEW ============ */
+  .dash-shell{min-height:100vh; background:var(--paper);}
+  .dash-nav{background:var(--blueprint); color:#fff; padding:16px 28px; display:flex; align-items:center; justify-content:space-between;}
+  .dash-nav .brand-text{font-size:16px;}
+  .dash-tenant{font-family:var(--f-mono); font-size:12px; color:#B9CFDA;}
+  .dash-body{max-width:1100px; margin:0 auto; padding:32px 24px 80px;}
+  .dash-tabs{display:flex; gap:6px; margin-bottom:28px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .dash-tab{font-family:var(--f-body); font-weight:600; font-size:13.5px; padding:11px 16px; background:none; border:none; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent;}
+  .dash-tab.active{color:var(--copper); border-bottom-color:var(--copper);}
+  .dash-panel{display:none;}
+  .dash-panel.active{display:block;}
+  .dash-card{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:22px; margin-bottom:16px;}
+  .dash-card h4{font-family:var(--f-display); font-size:15px; margin:0 0 4px;}
+  .dash-card .meta{font-family:var(--f-mono); font-size:10.5px; color:var(--muted-lt); text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px;}
+  .dash-card p{font-size:13.5px; color:var(--ink); line-height:1.6;}
+  .dash-card .score-row{display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-family:var(--f-mono); font-size:11.5px; color:var(--muted);}
+  .dash-card .score-row strong{color:var(--ink); font-family:var(--f-body);}
+  .dash-form{display:grid; gap:10px; margin-bottom:22px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px;}
+  .dash-form-row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .dash-form input, .dash-form select, .dash-form textarea{width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:7px; font-family:var(--f-body); font-size:13px; color:var(--ink); background:var(--paper);}
+  .dash-form textarea{min-height:70px; resize:vertical;}
+  .dash-form label{font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px;}
+  .dash-btn-row{display:flex; gap:10px; align-items:center;}
+  .dash-status{font-family:var(--f-mono); font-size:11px; color:var(--muted);}
+  .dash-empty{font-size:13.5px; color:var(--muted); padding:20px; text-align:center; border:1px dashed var(--border); border-radius:10px;}
+  .risk-pill{font-family:var(--f-mono); font-size:10px; text-transform:uppercase; padding:3px 9px; border-radius:20px; display:inline-block;}
+  .risk-low{background:var(--growth-soft); color:var(--growth);}
+  .risk-medium{background:var(--custf-soft); color:var(--custf);}
+  .risk-high, .risk-critical{background:var(--obs-soft); color:var(--obs);}
+  .dash-checklist{display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; border:1px solid var(--border-soft); border-radius:8px; padding:12px; margin-bottom:12px;}
+  .dash-checklist label{display:flex; gap:8px; font-size:13px; color:var(--ink); align-items:flex-start; text-transform:none; font-weight:400;}
+  .markdown-out{background:var(--paper); border:1px solid var(--border-soft); border-radius:8px; padding:16px; font-size:13px; line-height:1.7; white-space:pre-wrap;}
+  @media (max-width:700px){ .dash-form-row{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<!-- ================= HOME VIEW ================= -->
+<div class="view active" id="view-home">
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#top" class="brand">
+        <svg class="brand-mark" viewBox="0 0 27 27" fill="none">
+          <path d="M2 6 C11 6, 11 15.5, 19 15.5 S27 25, 29 25" stroke="#4A5FBF" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 12 C11 12, 11 15.5, 19 15.5 S27 19, 29 19" stroke="#2F8F6E" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 15.5 H19 S24 15.5, 29 15.5" stroke="#B8862B" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 19 C11 19, 11 15.5, 19 15.5 S27 12, 29 12" stroke="#1E7A8C" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 25 C11 25, 11 15.5, 19 15.5 S27 6, 29 6" stroke="#B15E3D" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-text">AutoStrat<span class="loom">Loom</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="#agents">Agents</a>
+        <a href="#why-now">Why Now</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#consulting">Consulting</a>
+        <a href="#security">Security</a>
+        <a href="#contact">Contact</a>
+      </div>
+      <div class="nav-cta">
+        <button class="btn btn-ghost-dark" onclick="goToWorkspace()">Log In</button>
+        <a href="#contact" class="btn btn-copper">Request Trial</a>
+        <button class="hamburger" aria-label="Open menu" onclick="toggleMobileMenu(true)">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <button class="hamburger" aria-label="Close menu" onclick="toggleMobileMenu(false)" style="position:absolute; top:22px; right:22px;">
+      <span style="transform:rotate(45deg) translate(1px,1px);"></span>
+      <span style="opacity:0;"></span>
+      <span style="transform:rotate(-45deg) translate(1px,-1px); margin-top:-12px;"></span>
+    </button>
+    <a href="#agents" onclick="toggleMobileMenu(false)">Agents</a>
+    <a href="#why-now" onclick="toggleMobileMenu(false)">Why Now</a>
+    <a href="#pricing" onclick="toggleMobileMenu(false)">Pricing</a>
+    <a href="#consulting" onclick="toggleMobileMenu(false)">Consulting</a>
+    <a href="#security" onclick="toggleMobileMenu(false)">Security</a>
+    <a href="#contact" onclick="toggleMobileMenu(false)">Contact</a>
+    <div class="mobile-ctas">
+      <button class="btn btn-ghost-dark btn-lg" onclick="goToWorkspace()">Log In</button>
+      <a href="#contact" class="btn btn-copper btn-lg" onclick="toggleMobileMenu(false)">Request Trial</a>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <header class="hero" id="top">
+    <div class="hero-inner">
+      <div>
+        <div class="eyebrow">AI-native agents for product strategy</div>
+        <h1>Product management,<br>engineered <span>for what it's actually short on.</span></h1>
+        <p class="lead">AutoStrat Loom deploys AI agents that take on the parts of product management your team can't scale — portfolio prioritization, discovery, roadmap communication, and obsolescence risk — so your product managers spend their time on judgment, not backlog admin.</p>
+        <div class="hero-ctas">
+          <a href="#contact" class="btn btn-copper btn-lg">Request a Trial</a>
+          <a href="#consulting" class="btn btn-ghost-dark btn-lg">Talk to Us About Consulting</a>
+        </div>
+        <div class="hero-note">DEPLOY ONE AGENT, THE FULL SUITE, OR BRING IN OUR TEAM DIRECTLY</div>
+      </div>
+      <div>
+        <svg viewBox="0 0 480 380" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto;">
+          <text x="0" y="16" font-family="IBM Plex Mono" font-size="9.5" letter-spacing="1.5" fill="#6FB4D6">COMPLEXITY IN — CLARITY OUT</text>
+          <!-- tangled complexity web (left) -->
+          <g stroke="#3E5872" stroke-width="1.1" opacity=".85">
+            <line x1="20" y1="50" x2="95" y2="110"/>
+            <line x1="20" y1="140" x2="95" y2="80"/>
+            <line x1="30" y1="200" x2="95" y2="150"/>
+            <line x1="20" y1="90" x2="90" y2="190"/>
+            <line x1="35" y1="240" x2="95" y2="120"/>
+            <line x1="60" y1="30" x2="95" y2="150"/>
+            <line x1="90" y1="190" x2="150" y2="150"/>
+            <line x1="95" y1="80" x2="150" y2="150"/>
+            <line x1="95" y1="110" x2="150" y2="150"/>
+            <line x1="95" y1="150" x2="150" y2="150"/>
+            <line x1="95" y1="120" x2="150" y2="150"/>
+            <line x1="45" y1="270" x2="95" y2="190"/>
+          </g>
+          <g fill="#6FB4D6">
+            <circle cx="20" cy="50" r="3"/><circle cx="20" cy="90" r="3"/><circle cx="20" cy="140" r="3"/>
+            <circle cx="30" cy="200" r="3"/><circle cx="35" cy="240" r="3"/><circle cx="45" cy="270" r="3"/>
+            <circle cx="60" cy="30" r="3"/>
+            <circle cx="95" cy="80" r="3.4"/><circle cx="95" cy="110" r="3.4"/><circle cx="95" cy="150" r="3.4"/>
+            <circle cx="95" cy="120" r="3.4"/><circle cx="90" cy="190" r="3.4"/>
+          </g>
+          <text x="0" y="285" font-family="IBM Plex Mono" font-size="8" fill="#8FB6CB">DISCOVERY · STAKEHOLDERS · SUSTAINMENT</text>
+          <text x="0" y="298" font-family="IBM Plex Mono" font-size="8" fill="#8FB6CB">PRICING · OBSOLESCENCE · METRICS</text>
+
+          <!-- loom gate -->
+          <rect x="150" y="100" width="60" height="100" rx="6" fill="none" stroke="#C1712F" stroke-width="1.6" stroke-dasharray="3 3"/>
+          <text x="158" y="155" font-family="IBM Plex Mono" font-size="10" fill="#EAF3F8">LOOM</text>
+
+          <!-- five clean threads out (right) -->
+          <path d="M210 150 H460" stroke="#2F8F6E" stroke-width="2"/>
+          <text x="215" y="145" font-family="IBM Plex Mono" font-size="9" fill="#2F8F6E">PRIORITIZE</text>
+
+          <path d="M210 150 C 260 150, 260 115, 460 115" stroke="#4A5FBF" stroke-width="2" fill="none"/>
+          <text x="270" y="110" font-family="IBM Plex Mono" font-size="9" fill="#93A3E8">DISCOVER</text>
+
+          <path d="M210 150 C 260 150, 260 185, 460 185" stroke="#1E7A8C" stroke-width="2" fill="none"/>
+          <text x="270" y="200" font-family="IBM Plex Mono" font-size="9" fill="#6FC3D6">ALIGN</text>
+
+          <path d="M210 150 C 260 150, 260 90, 460 90" stroke="#B8862B" stroke-width="2" fill="none"/>
+          <text x="290" y="85" font-family="IBM Plex Mono" font-size="9" fill="#E0B15C">SUSTAIN</text>
+
+          <path d="M210 150 C 260 150, 260 210, 460 210" stroke="#B15E3D" stroke-width="2" fill="none"/>
+          <text x="300" y="225" font-family="IBM Plex Mono" font-size="9" fill="#DB8F6C">BRIEF</text>
+
+          <circle cx="440" cy="150" r="24" stroke="#6FB4D6" stroke-width="1.3" fill="none" stroke-dasharray="2 3"/>
+          <text x="440" y="147" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="#EAF3F8">ONE</text>
+          <text x="440" y="158" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="#EAF3F8">QUEUE</text>
+        </svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- STAT STRIP -->
+  <div class="stat-strip">
+    <div class="stat-grid">
+      <div class="stat-item reveal"><p><strong style="color:var(--ink); font-family:var(--f-display);">PM job postings are climbing</strong><br>and most leaders still say hiring the right person has never been harder.</p></div>
+      <div class="stat-item reveal"><p><strong style="color:var(--ink); font-family:var(--f-display);">AI fluency is now table stakes</strong><br>for the majority of open product roles — most working PMs were never trained for it.</p></div>
+      <div class="stat-item reveal"><p><strong style="color:var(--ink); font-family:var(--f-display);">Backlog hygiene stopped differentiating</strong><br>candidates. Strategic judgment is what companies are actually short on.</p></div>
+      <div class="stat-item reveal"><p><strong style="color:var(--ink); font-family:var(--f-display);">Most AI pilots still miss ROI</strong><br>without an operating layer that turns the tool into a habit, not a demo.</p></div>
+    </div>
+  </div>
+
+  <!-- WHY NOW / THE GAP -->
+  <section class="block" id="why-now">
+    <div class="section-head reveal">
+      <div class="section-eyebrow">Why now</div>
+      <h2>Companies are hiring product managers for judgment. Most of the job is still admin.</h2>
+      <p>The role is splitting into two tracks — strategic and executional — but budgets rarely fund both. Here's the gap Loom is built to close.</p>
+    </div>
+    <div class="gap-grid">
+      <div class="gap-card reveal">
+        <h3>The generalist PM is stretched past what one person can hold</h3>
+        <p>Growth bets, internal R&amp;D, customer-funded commitments, sustainment fixes, and obsolescence risk all compete for the same roadmap — usually triaged by instinct, under one overloaded owner.</p>
+      </div>
+      <div class="gap-card reveal">
+        <h3>AI tools without an operating layer</h3>
+        <p>Leadership is buying AI licenses faster than teams can adopt them. The tools exist. The workflow that turns them into daily habit — usually doesn't.</p>
+      </div>
+      <div class="gap-card reveal">
+        <h3>Sustainment and obsolescence get ignored</h3>
+        <p>Most product tools are built for shipping net-new features. The unglamorous work of keeping fielded products alive rarely gets a system of its own.</p>
+      </div>
+      <div class="gap-card reveal">
+        <h3>Senior leadership wants a seat at the strategy table</h3>
+        <p>Executives are more involved in setting product direction than they were two years ago. That only works if the underlying prioritization is defensible, not vibes-based.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- AGENTS -->
+  <section class="agents-strip" id="agents">
+    <div class="block">
+      <div class="section-head reveal">
+        <div class="section-eyebrow" style="color:var(--line);">The Loom agent family</div>
+        <h2 style="color:#fff;">Five agents. Each one replaces a job you're currently doing by hand — or short-staffing.</h2>
+        <p style="color:#B9CFDA;">Subscribe to one where the pain is worst, or run the full suite as your product operating layer. Every agent can complement a PM already on the team, or carry the function on its own.</p>
+      </div>
+      <div class="agent-grid">
+        <div class="agent-card reveal" style="border-top-color:var(--growth)">
+          <div class="agent-tag" style="color:var(--growth)">Prioritize</div>
+          <span class="agent-badge" style="background:rgba(47,143,110,.18); color:#8FD6BB;">Complements or replaces</span>
+          <h3>Loom Prioritize</h3>
+          <p>Scores every growth, IRAD, customer-funded, sustainment, and obsolescence initiative on one defensible framework — continuously, not once a quarter.</p>
+          <a class="agent-link" style="color:var(--growth)" href="#contact">Request access &rarr;</a>
+        </div>
+        <div class="agent-card reveal" style="border-top-color:var(--irad)">
+          <div class="agent-tag" style="color:var(--irad)">Discover</div>
+          <span class="agent-badge" style="background:rgba(74,95,191,.18); color:#B5C0F0;">Complements your PM</span>
+          <h3>Loom Discover</h3>
+          <p>Reads support tickets, sales calls, and reviews continuously to surface validated customer problems before they're missed in a backlog review.</p>
+          <a class="agent-link" style="color:#8FA0E8" href="#contact">Request access &rarr;</a>
+        </div>
+        <div class="agent-card reveal" style="border-top-color:var(--custf)">
+          <div class="agent-tag" style="color:var(--custf)">Align</div>
+          <span class="agent-badge" style="background:rgba(184,134,43,.18); color:#E0B15C;">Complements or replaces</span>
+          <h3>Loom Align</h3>
+          <p>Turns the prioritized backlog into a roadmap, and the roadmap into exec-ready updates — drafted automatically, not assembled the night before.</p>
+          <a class="agent-link" style="color:#E0B15C" href="#contact">Request access &rarr;</a>
+        </div>
+        <div class="agent-card reveal" style="border-top-color:var(--sustain)">
+          <div class="agent-tag" style="color:var(--sustain)">Sustain</div>
+          <span class="agent-badge" style="background:rgba(30,122,140,.18); color:#7FCBDB;">Complements your PM</span>
+          <h3>Loom Sustain</h3>
+          <p>Tracks part, platform, and dependency end-of-life exposure, and flags what needs a refresh before it becomes an outage or a compliance problem.</p>
+          <a class="agent-link" style="color:#6FC3D6" href="#contact">Request access &rarr;</a>
+        </div>
+        <div class="agent-card reveal" style="border-top-color:var(--obs)">
+          <div class="agent-tag" style="color:var(--obs)">Brief</div>
+          <span class="agent-badge" style="background:rgba(177,94,61,.18); color:#DB8F6C;">Complements or replaces</span>
+          <h3>Loom Brief</h3>
+          <p>Board-ready portfolio reporting, generated on demand from live data — not reconstructed from five spreadsheets the morning of the review.</p>
+          <a class="agent-link" style="color:#DB8F6C" href="#contact">Request access &rarr;</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="block">
+    <div class="section-head reveal">
+      <div class="section-eyebrow">How it works</div>
+      <h2>From scattered inputs to an operating layer</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">STEP 1</div>
+        <h3>Connect your data</h3>
+        <p>Your PLM, CRM, support desk, and existing backlog tools feed Loom directly — no rip-and-replace, no re-platforming your stack.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">STEP 2</div>
+        <h3>Deploy the agents you need</h3>
+        <p>Start with the single function that hurts most, or activate the full suite. Every agent is scoped to your team's actual workflow, not a generic template.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">STEP 3</div>
+        <h3>Operate with a defensible portfolio</h3>
+        <p>Every prioritization call, roadmap update, and risk flag is logged and explainable — ready for the board, not just the backlog.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="block" id="pricing">
+    <div class="section-head center reveal">
+      <div class="section-eyebrow">Pricing</div>
+      <h2>Start narrow. Expand when it earns it.</h2>
+      <p>Every tier runs on the same underlying platform — moving from one agent to the full suite is a configuration change, not a migration.</p>
+    </div>
+    <div class="price-grid">
+      <div class="price-card reveal">
+        <h3>Single Agent</h3>
+        <p class="price-sub">Micro-SaaS. Deploy exactly one agent where the pain is worst.</p>
+        <ul>
+          <li>Any one Loom agent</li>
+          <li>Standard integrations</li>
+          <li>Email support</li>
+          <li>Monthly billing</li>
+        </ul>
+        <a href="#contact" class="btn btn-ghost-light" style="justify-content:center;">Request Pricing</a>
+      </div>
+      <div class="price-card featured reveal">
+        <div class="price-pill">Most Popular</div>
+        <h3>Full Suite</h3>
+        <p class="price-sub">All five agents, operating as one prioritized queue across your portfolio.</p>
+        <ul>
+          <li>All five Loom agents</li>
+          <li>Cross-agent shared context</li>
+          <li>Priority support &amp; onboarding</li>
+          <li>Custom scoring calibration</li>
+        </ul>
+        <a href="#contact" class="btn btn-copper" style="justify-content:center;">Request Pricing</a>
+      </div>
+      <div class="price-card reveal">
+        <h3>Enterprise + Consulting</h3>
+        <p class="price-sub">Custom agent configuration plus hands-on strategic advisory.</p>
+        <ul>
+          <li>Everything in Full Suite</li>
+          <li>Dedicated implementation team</li>
+          <li>Custom framework &amp; data model</li>
+          <li>SSO, audit logging, SLA</li>
+        </ul>
+        <a href="#contact" class="btn btn-ghost-light" style="justify-content:center;">Talk to Us</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONSULTING -->
+  <section class="block" id="consulting">
+    <div class="consult-block reveal">
+      <div class="consult-copy">
+        <div class="section-eyebrow">Beyond software</div>
+        <h2>When you need hands, not just agents</h2>
+        <p>Some engagements need a strategist in the room before they need a subscription. AutoStrat Loom's consulting practice works alongside your team directly — independent of, or as a lead-in to, the platform.</p>
+        <div class="consult-list">
+          <div class="consult-list-item"><span class="dot"></span>Portfolio and prioritization framework audits</div>
+          <div class="consult-list-item"><span class="dot"></span>WSJF and cost-of-delay rollout across program types</div>
+          <div class="consult-list-item"><span class="dot"></span>Obsolescence and sustainment risk assessments</div>
+          <div class="consult-list-item"><span class="dot"></span>Fractional product strategy leadership</div>
+        </div>
+        <a href="#contact" class="btn btn-copper">Schedule a Consulting Conversation</a>
+      </div>
+      <div class="consult-visual">
+        <div class="quote-mark">&ldquo;</div>
+        <p>Software encodes a framework. It doesn't build one from scratch, or tell you which trade-offs actually matter for your business. That's still a conversation, not a configuration screen.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECURITY / TRUST -->
+  <section class="trust-section" id="security">
+    <div class="block">
+      <div class="section-head reveal">
+        <div class="section-eyebrow" style="color:var(--line);">Built for enterprise trust</div>
+        <h2 style="color:#fff;">The risk of adopting a new SaaS platform, addressed directly</h2>
+        <p style="color:#B9CFDA;">We know what's actually being evaluated when a platform like this crosses a procurement desk. Here's where we stand today, plainly.</p>
+      </div>
+      <div class="trust-grid">
+        <div class="trust-item reveal">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.5"/></svg>
+          <div><h4>Encrypted in transit and at rest</h4><p>Built on AWS infrastructure with encryption applied throughout, not bolted on afterward.</p></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6l7-3z" stroke="currentColor" stroke-width="1.5"/></svg>
+          <div><h4>Your data never trains a shared model</h4><p>Customer data stays scoped to your workspace. It is not used to train models shared across other customers.</p></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg>
+          <div><h4>Tenant isolation by design</h4><p>Every workspace's data and configuration is logically separated — no shared database rows, no cross-tenant queries.</p></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6l7-3z" stroke="currentColor" stroke-width="1.5"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div><h4>Role-based access &amp; full audit logging</h4><p>Every scoring change, roadmap edit, and agent action is attributed and timestamped — reviewable by your team, not just ours.</p></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none"><path d="M4 12h16M12 4v16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/></svg>
+          <div><h4>No lock-in — export on your terms</h4><p>Your portfolio data, scoring history, and configuration export cleanly at any time. Leaving should never be the hard part.</p></div>
+        </div>
+        <div class="trust-item reveal">
+          <svg class="trust-icon" viewBox="0 0 24 24" fill="none"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <div><h4>Compliance, on the roadmap</h4><p>We're building toward recognized enterprise compliance standards as we scale. Tell us your specific requirements — we'll tell you exactly where we stand against them.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="block" id="contact">
+    <div class="contact-block reveal">
+      <div class="contact-copy">
+        <div class="section-eyebrow">Get in touch</div>
+        <h2>Request a trial, or start a consulting conversation</h2>
+        <p>Tell us which Loom agents fit your team, or what you need from a hands-on engagement. We respond within two business days.</p>
+        <p>Whether you're evaluating a subscription, a custom consulting engagement, or both — this goes to the same place, and a real person reads every message.</p>
+        <div class="contact-alt">Prefer to talk sooner? Mention it in the message and your preferred time — we'll coordinate a call.</div>
+      </div>
+      <form class="form-grid" onsubmit="handleContact(event)">
+        <div class="form-row-2">
+          <div><label>Full name</label><input id="contactName" type="text" required></div>
+          <div><label>Work email</label><input id="contactEmail" type="email" required></div>
+        </div>
+        <div class="form-row-2">
+          <div><label>Company</label><input id="contactCompany" type="text"></div>
+          <div><label>Role</label><input id="contactRole" type="text"></div>
+        </div>
+        <div>
+          <label>I'm interested in</label>
+          <select id="interestSelect">
+            <option>Agent subscription</option>
+            <option>Custom consulting</option>
+            <option>Both / not sure yet</option>
+          </select>
+        </div>
+        <div>
+          <label>Message</label>
+          <textarea id="contactMessage" placeholder="What are you hoping to solve?" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-copper" style="justify-content:center; padding:12px;" id="contactSubmitBtn">Send</button>
+        <div class="form-note" id="formNote">We respond within two business days.</div>
+      </form>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <a href="#top" class="brand" style="margin-bottom:14px;">
+          <svg class="brand-mark" viewBox="0 0 27 27" fill="none">
+            <path d="M2 6 C11 6, 11 15.5, 19 15.5 S27 25, 29 25" stroke="#4A5FBF" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M2 15.5 H19 S24 15.5, 29 15.5" stroke="#B8862B" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M2 25 C11 25, 11 15.5, 19 15.5 S27 6, 29 6" stroke="#B15E3D" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+          <span class="brand-text">AutoStrat<span class="loom">Loom</span></span>
+        </a>
+        <p>AI-native agents that complement — or run — the product management function, for enterprises managing growth, sustainment, and obsolescence at once.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <a href="#agents">The agent family</a>
+        <a href="#pricing">Pricing</a>
+        <a onclick="goToWorkspace()">Log in</a>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <a href="#consulting">Consulting</a>
+        <a href="#security">Security &amp; trust</a>
+        <a href="#contact">Contact</a>
+      </div>
+      <div>
+        <h4>Get started</h4>
+        <a href="#contact">Request a trial</a>
+        <a href="#contact">Talk to sales</a>
+      </div>
+    </div>
+    <div class="footer-bottom">&copy; 2026 AutoStrat Loom &middot; All rights reserved</div>
+  </footer>
+</div>
+
+<!-- ================= LOGIN VIEW ================= -->
+<div class="view" id="view-login">
+  <div class="back-home"><a onclick="showView('home')">&larr; Back to site</a></div>
+  <div class="login-shell">
+    <div class="login-card">
+      <div class="login-brand">
+        <svg class="brand-mark" viewBox="0 0 27 27" fill="none">
+          <path d="M2 6 C11 6, 11 15.5, 19 15.5 S27 25, 29 25" stroke="#4A5FBF" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 15.5 H19 S24 15.5, 29 15.5" stroke="#B8862B" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 25 C11 25, 11 15.5, 19 15.5 S27 6, 29 6" stroke="#B15E3D" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-text" style="color:var(--ink);">AutoStrat<span class="loom">Loom</span></span>
+      </div>
+      <h2>Log in to your workspace</h2>
+      <p class="sub">Run your agents and review this week's prioritized queue.</p>
+      <form onsubmit="handleLogin(event)">
+        <div class="field"><label>Work email</label><input id="loginEmail" type="email" placeholder="you@company.com" required></div>
+        <div class="field"><label>Password</label><input id="loginPassword" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" required></div>
+        <div class="login-row"><span></span><a href="javascript:void(0)">Forgot password?</a></div>
+        <button type="submit" class="btn btn-copper login-submit" id="loginSubmitBtn">Sign in</button>
+        <div class="dash-status" id="loginError" style="color:var(--obs); min-height:14px;"></div>
+      </form>
+      <div class="login-alt">No account yet? <a onclick="showView('home'); setTimeout(()=>document.getElementById('contact').scrollIntoView(),80)">Request a trial</a></div>
+      <div class="login-disclaimer">Connects to the Loom API running at <span id="apiBaseDisplay"></span>. Update API_BASE at the top of the script if your backend runs somewhere else.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DASHBOARD VIEW ================= -->
+<div class="view" id="view-dashboard">
+  <div class="dash-shell">
+    <div class="dash-nav">
+      <a href="#" class="brand" onclick="return false;" style="cursor:default;">
+        <svg class="brand-mark" viewBox="0 0 27 27" fill="none">
+          <path d="M2 6 C11 6, 11 15.5, 19 15.5 S27 25, 29 25" stroke="#4A5FBF" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 15.5 H19 S24 15.5, 29 15.5" stroke="#B8862B" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M2 25 C11 25, 11 15.5, 19 15.5 S27 6, 29 6" stroke="#B15E3D" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-text">AutoStrat<span class="loom">Loom</span></span>
+      </a>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <span class="dash-tenant" id="dashTenantLabel"></span>
+        <button class="btn btn-ghost-dark" onclick="handleLogout()">Log out</button>
+      </div>
+    </div>
+
+    <div class="dash-body">
+      <div class="dash-tabs">
+        <button class="dash-tab active" data-panel="panel-initiatives" onclick="switchDashTab('panel-initiatives')">Prioritize</button>
+        <button class="dash-tab" data-panel="panel-discover" onclick="switchDashTab('panel-discover')">Discover</button>
+        <button class="dash-tab" data-panel="panel-align" onclick="switchDashTab('panel-align')">Align</button>
+        <button class="dash-tab" data-panel="panel-sustain" onclick="switchDashTab('panel-sustain')">Sustain</button>
+        <button class="dash-tab" data-panel="panel-brief" onclick="switchDashTab('panel-brief')">Brief</button>
+        <button class="dash-tab" data-panel="panel-audit" onclick="switchDashTab('panel-audit')">Audit Log</button>
+      </div>
+
+      <!-- PRIORITIZE -->
+      <div class="dash-panel active" id="panel-initiatives">
+        <form class="dash-form" onsubmit="createInitiative(event)">
+          <div class="dash-form-row">
+            <div><label>Title</label><input id="newInitTitle" required placeholder="e.g. Self-serve onboarding flow"></div>
+            <div><label>Category</label>
+              <select id="newInitCategory">
+                <option value="growth">Growth</option>
+                <option value="irad">IRAD</option>
+                <option value="customer_funded">Customer-funded</option>
+                <option value="sustainment">Sustainment</option>
+                <option value="obsolescence">Obsolescence</option>
+              </select>
+            </div>
+          </div>
+          <div><label>Description</label><textarea id="newInitDescription" placeholder="What is this, and why does it matter?"></textarea></div>
+          <div class="dash-btn-row"><button type="submit" class="btn btn-copper">Add initiative</button><span class="dash-status" id="initFormStatus"></span></div>
+        </form>
+        <div id="initiativesList"><div class="dash-empty">Loading initiatives&hellip;</div></div>
+      </div>
+
+      <!-- DISCOVER -->
+      <div class="dash-panel" id="panel-discover">
+        <form class="dash-form" onsubmit="runDiscover(event)">
+          <div class="dash-form-row">
+            <div><label>Source type</label>
+              <select id="discoverSourceType">
+                <option value="support_ticket">Support ticket</option>
+                <option value="sales_call">Sales call note</option>
+                <option value="review">Review</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div></div>
+          </div>
+          <div><label>Paste the raw text</label><textarea id="discoverRawText" required placeholder="Paste a support ticket, call note, or review here&hellip;"></textarea></div>
+          <div class="dash-btn-row"><button type="submit" class="btn btn-copper">Run Discover</button><span class="dash-status" id="discoverFormStatus"></span></div>
+        </form>
+        <div id="signalsList"><div class="dash-empty">No signals analyzed yet.</div></div>
+      </div>
+
+      <!-- ALIGN -->
+      <div class="dash-panel" id="panel-align">
+        <form class="dash-form" onsubmit="runAlign(event)">
+          <div><label>Roadmap title</label><input id="alignTitle" value="Roadmap Update"></div>
+          <div>
+            <label>Include initiatives</label>
+            <div class="dash-checklist" id="alignInitiativeChecklist"><div class="dash-empty">Add initiatives in the Prioritize tab first.</div></div>
+          </div>
+          <div class="dash-btn-row"><button type="submit" class="btn btn-copper">Draft roadmap</button><span class="dash-status" id="alignFormStatus"></span></div>
+        </form>
+        <div id="roadmapsList"></div>
+      </div>
+
+      <!-- SUSTAIN -->
+      <div class="dash-panel" id="panel-sustain">
+        <form class="dash-form" onsubmit="createAsset(event)">
+          <div class="dash-form-row">
+            <div><label>Asset name</label><input id="newAssetName" required placeholder="e.g. Zebra DS2208 firmware"></div>
+            <div><label>Type</label>
+              <select id="newAssetType">
+                <option value="part">Part</option>
+                <option value="platform">Platform</option>
+                <option value="dependency">Dependency</option>
+              </select>
+            </div>
+          </div>
+          <div class="dash-form-row">
+            <div><label>End-of-life date (optional)</label><input id="newAssetEol" type="date"></div>
+            <div><label>Criticality</label>
+              <select id="newAssetCriticality">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+          <div class="dash-btn-row"><button type="submit" class="btn btn-copper">Add asset</button><span class="dash-status" id="assetFormStatus"></span></div>
+        </form>
+        <div id="assetsList"><div class="dash-empty">Loading assets&hellip;</div></div>
+      </div>
+
+      <!-- BRIEF -->
+      <div class="dash-panel" id="panel-brief">
+        <form class="dash-form" onsubmit="runBrief(event)">
+          <div><label>Report title</label><input id="briefTitle" value="Portfolio Brief"></div>
+          <div><label>Steer notes (optional)</label><textarea id="briefNotes" placeholder="e.g. focus on obsolescence risk this quarter"></textarea></div>
+          <div class="dash-btn-row"><button type="submit" class="btn btn-copper">Generate brief</button><span class="dash-status" id="briefFormStatus"></span></div>
+        </form>
+        <div id="briefsList"></div>
+      </div>
+
+      <!-- AUDIT LOG -->
+      <div class="dash-panel" id="panel-audit">
+        <div id="auditList"><div class="dash-empty">Loading audit log&hellip;</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ CONFIG ============ */
+// Change this to your deployed API's URL when you're not running it locally.
+// Automatically uses your local dev backend when you open this file directly
+// or serve it from localhost, and your production API once it's deployed to
+// autostrat.net. Change the production URL below if your API domain differs.
+const API_BASE = (["localhost", "127.0.0.1", ""].includes(location.hostname) || location.protocol === "file:")
+  ? "http://127.0.0.1:8000"
+  : "https://api.autostrat.net";
+
+/* ============ VIEW SWITCHING ============ */
+function showView(name){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  toggleMobileMenu(false);
+  window.scrollTo(0,0);
+  if(name === 'dashboard') loadDashboardData();
+}
+
+function toggleMobileMenu(open){
+  document.getElementById('mobileMenu').classList.toggle('open', open);
+}
+
+function goToWorkspace(){
+  showView(getSession() ? 'dashboard' : 'login');
+}
+
+const apiBaseDisplayEl = document.getElementById('apiBaseDisplay');
+if(apiBaseDisplayEl) apiBaseDisplayEl.textContent = API_BASE;
+
+/* ============ SESSION HELPERS ============ */
+function getSession(){
+  const raw = localStorage.getItem('loom_session');
+  return raw ? JSON.parse(raw) : null;
+}
+function setSession(session){
+  localStorage.setItem('loom_session', JSON.stringify(session));
+}
+function clearSession(){
+  localStorage.removeItem('loom_session');
+}
+function authHeaders(){
+  const session = getSession();
+  return session ? { "Authorization": "Bearer " + session.token } : {};
+}
+
+async function apiFetch(path, options = {}){
+  const resp = await fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(options.headers || {}),
+    },
+  });
+  if(resp.status === 401){
+    clearSession();
+    showView('login');
+    throw new Error("Session expired — please log in again.");
+  }
+  if(!resp.ok){
+    let detail = resp.statusText;
+    try { const body = await resp.json(); detail = body.detail || detail; } catch(_) {}
+    throw new Error(detail);
+  }
+  if(resp.status === 204) return null;
+  return resp.json();
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+
+/* ============ LOGIN ============ */
+async function handleLogin(e){
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginSubmitBtn');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const resp = await fetch(API_BASE + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if(!resp.ok){
+      throw new Error(resp.status === 401 ? 'Incorrect email or password.' : 'Login failed — is the API running at ' + API_BASE + '?');
+    }
+    const data = await resp.json();
+    setSession(data);
+    showView('dashboard');
+  } catch(err){
+    errorEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+  }
+}
+
+async function handleLogout(){
+  try { await apiFetch('/auth/logout', { method: 'POST' }); } catch(_) {}
+  clearSession();
+  showView('home');
+}
+
+/* ============ CONTACT FORM ============ */
+async function handleContact(e){
+  e.preventDefault();
+  const note = document.getElementById('formNote');
+  const btn = document.getElementById('contactSubmitBtn');
+  const payload = {
+    full_name: document.getElementById('contactName').value,
+    work_email: document.getElementById('contactEmail').value,
+    company: document.getElementById('contactCompany').value,
+    role: document.getElementById('contactRole').value,
+    interest: document.getElementById('interestSelect').value,
+    message: document.getElementById('contactMessage').value,
+  };
+  btn.disabled = true;
+  try {
+    const resp = await fetch(API_BASE + '/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if(!resp.ok) throw new Error();
+    note.textContent = "Thanks — we've received your message and will follow up within two business days.";
+    note.style.color = "var(--sustain)";
+    e.target.reset();
+  } catch(_) {
+    note.textContent = "Couldn't reach the server just now — please try again in a moment, or email us directly.";
+    note.style.color = "var(--obs)";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ============ DASHBOARD ============ */
+function switchDashTab(panelId){
+  document.querySelectorAll('.dash-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === panelId));
+  document.querySelectorAll('.dash-panel').forEach(p => p.classList.toggle('active', p.id === panelId));
+}
+
+function loadDashboardData(){
+  const session = getSession();
+  if(!session){ showView('login'); return; }
+  document.getElementById('dashTenantLabel').textContent = session.tenant_name + ' — ' + session.user_email;
+  refreshInitiatives();
+  refreshAssets();
+  refreshRoadmaps();
+  refreshBriefs();
+  refreshAuditLog();
+}
+
+/* ---- Prioritize ---- */
+async function refreshInitiatives(){
+  const el = document.getElementById('initiativesList');
+  try {
+    const initiatives = await apiFetch('/initiatives');
+    if(!initiatives.length){
+      el.innerHTML = '<div class="dash-empty">No initiatives yet — add one above.</div>';
+    } else {
+      el.innerHTML = initiatives.map(renderInitiativeCard).join('');
+    }
+    renderAlignChecklist(initiatives);
+  } catch(err){
+    el.innerHTML = `<div class="dash-empty">Couldn't load initiatives: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderInitiativeCard(init){
+  return `
+    <div class="dash-card">
+      <div class="meta">${escapeHtml(init.category)} · ${escapeHtml(init.status)}</div>
+      <h4>${escapeHtml(init.title)}</h4>
+      <p>${escapeHtml(init.description || 'No description.')}</p>
+      <div class="dash-btn-row" style="margin-top:12px;">
+        <button class="btn btn-ghost-light" onclick="prioritizeInitiative('${init.id}', this)">Run Prioritize</button>
+        <span class="dash-status" id="score-${init.id}"></span>
+      </div>
+    </div>`;
+}
+
+async function createInitiative(e){
+  e.preventDefault();
+  const statusEl = document.getElementById('initFormStatus');
+  const payload = {
+    title: document.getElementById('newInitTitle').value,
+    category: document.getElementById('newInitCategory').value,
+    description: document.getElementById('newInitDescription').value,
+  };
+  statusEl.textContent = 'Saving…';
+  try {
+    await apiFetch('/initiatives', { method: 'POST', body: JSON.stringify(payload) });
+    e.target.reset();
+    statusEl.textContent = '';
+    refreshInitiatives();
+  } catch(err){
+    statusEl.textContent = 'Error: ' + err.message;
+  }
+}
+
+async function prioritizeInitiative(id, btn){
+  const scoreEl = document.getElementById('score-' + id);
+  btn.disabled = true;
+  scoreEl.textContent = 'Scoring with Claude…';
+  try {
+    const score = await apiFetch(`/initiatives/${id}/prioritize`, { method: 'POST' });
+    scoreEl.innerHTML = `<strong>Score: ${score.composite_score}</strong> (reach ${score.reach}, impact ${score.impact}, confidence ${score.confidence}, effort ${score.effort})`;
+  } catch(err){
+    scoreEl.textContent = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---- Discover ---- */
+async function runDiscover(e){
+  e.preventDefault();
+  const statusEl = document.getElementById('discoverFormStatus');
+  const payload = {
+    source_type: document.getElementById('discoverSourceType').value,
+    raw_text: document.getElementById('discoverRawText').value,
+  };
+  statusEl.textContent = 'Analyzing with Claude…';
+  try {
+    const signal = await apiFetch('/signals/discover', { method: 'POST', body: JSON.stringify(payload) });
+    document.getElementById('discoverRawText').value = '';
+    statusEl.textContent = '';
+    prependSignalCard(signal);
+  } catch(err){
+    statusEl.textContent = 'Error: ' + err.message;
+  }
+}
+
+function prependSignalCard(sig){
+  const el = document.getElementById('signalsList');
+  if(el.querySelector('.dash-empty')) el.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'dash-card';
+  card.innerHTML = `
+    <div class="meta">${escapeHtml(sig.source_type)} · ${sig.is_validated ? 'validated' : 'not validated'} · confidence ${sig.confidence}/10</div>
+    <h4>${escapeHtml(sig.extracted_problem)}</h4>
+    <p>Suggested category: ${escapeHtml(sig.suggested_category)}</p>`;
+  el.prepend(card);
+}
+
+/* ---- Sustain ---- */
+async function refreshAssets(){
+  const el = document.getElementById('assetsList');
+  try {
+    const assets = await apiFetch('/assets');
+    el.innerHTML = assets.length
+      ? assets.map(renderAssetCard).join('')
+      : '<div class="dash-empty">No tracked assets yet — add one above.</div>';
+  } catch(err){
+    el.innerHTML = `<div class="dash-empty">Couldn't load assets: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderAssetCard(asset){
+  return `
+    <div class="dash-card">
+      <div class="meta">${escapeHtml(asset.asset_type)} · criticality ${escapeHtml(asset.criticality)}${asset.eol_date ? ' · EOL ' + escapeHtml(asset.eol_date) : ''}</div>
+      <h4>${escapeHtml(asset.name)}</h4>
+      <div class="dash-btn-row" style="margin-top:12px;">
+        <button class="btn btn-ghost-light" onclick="assessAsset('${asset.id}', this)">Run Sustain</button>
+        <span class="dash-status" id="risk-${asset.id}"></span>
+      </div>
+    </div>`;
+}
+
+async function createAsset(e){
+  e.preventDefault();
+  const statusEl = document.getElementById('assetFormStatus');
+  const eol = document.getElementById('newAssetEol').value;
+  const payload = {
+    name: document.getElementById('newAssetName').value,
+    asset_type: document.getElementById('newAssetType').value,
+    eol_date: eol || null,
+    criticality: document.getElementById('newAssetCriticality').value,
+  };
+  statusEl.textContent = 'Saving…';
+  try {
+    await apiFetch('/assets', { method: 'POST', body: JSON.stringify(payload) });
+    e.target.reset();
+    statusEl.textContent = '';
+    refreshAssets();
+  } catch(err){
+    statusEl.textContent = 'Error: ' + err.message;
+  }
+}
+
+async function assessAsset(id, btn){
+  const riskEl = document.getElementById('risk-' + id);
+  btn.disabled = true;
+  riskEl.textContent = 'Assessing with Claude…';
+  try {
+    const assessment = await apiFetch(`/assets/${id}/assess`, { method: 'POST' });
+    riskEl.innerHTML = `<span class="risk-pill risk-${assessment.risk_level}">${escapeHtml(assessment.risk_level)}</span> ${escapeHtml(assessment.recommended_action)}`;
+  } catch(err){
+    riskEl.textContent = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---- Align ---- */
+function renderAlignChecklist(initiatives){
+  const el = document.getElementById('alignInitiativeChecklist');
+  if(!initiatives.length){
+    el.innerHTML = '<div class="dash-empty">Add initiatives in the Prioritize tab first.</div>';
+    return;
+  }
+  el.innerHTML = initiatives.map(i => `
+    <label><input type="checkbox" value="${i.id}" class="align-check"> ${escapeHtml(i.title)} <span style="color:var(--muted-lt);">(${escapeHtml(i.category)})</span></label>
+  `).join('');
+}
+
+async function refreshRoadmaps(){
+  const el = document.getElementById('roadmapsList');
+  try {
+    const roadmaps = await apiFetch('/roadmaps');
+    el.innerHTML = roadmaps.map(r => `
+      <div class="dash-card">
+        <div class="meta">Roadmap</div>
+        <h4>${escapeHtml(r.title)}</h4>
+        <p>${escapeHtml(r.exec_summary)}</p>
+        <div class="markdown-out">${escapeHtml(r.narrative)}</div>
+      </div>`).join('');
+  } catch(err){
+    el.innerHTML = `<div class="dash-empty">Couldn't load roadmaps: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function runAlign(e){
+  e.preventDefault();
+  const statusEl = document.getElementById('alignFormStatus');
+  const ids = Array.from(document.querySelectorAll('.align-check:checked')).map(c => c.value);
+  if(!ids.length){ statusEl.textContent = 'Select at least one initiative.'; return; }
+  const payload = { title: document.getElementById('alignTitle').value, initiative_ids: ids };
+  statusEl.textContent = 'Drafting with Claude…';
+  try {
+    await apiFetch('/roadmaps', { method: 'POST', body: JSON.stringify(payload) });
+    statusEl.textContent = '';
+    refreshRoadmaps();
+  } catch(err){
+    statusEl.textContent = 'Error: ' + err.message;
+  }
+}
+
+/* ---- Brief ---- */
+async function refreshBriefs(){
+  const el = document.getElementById('briefsList');
+  try {
+    const briefs = await apiFetch('/briefs');
+    el.innerHTML = briefs.map(b => `
+      <div class="dash-card">
+        <div class="meta">Brief</div>
+        <h4>${escapeHtml(b.title)}</h4>
+        <div class="markdown-out">${escapeHtml(b.content)}</div>
+      </div>`).join('');
+  } catch(err){
+    el.innerHTML = `<div class="dash-empty">Couldn't load briefs: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function runBrief(e){
+  e.preventDefault();
+  const statusEl = document.getElementById('briefFormStatus');
+  const payload = {
+    title: document.getElementById('briefTitle').value,
+    notes: document.getElementById('briefNotes').value,
+  };
+  statusEl.textContent = 'Generating with Claude…';
+  try {
+    await apiFetch('/briefs', { method: 'POST', body: JSON.stringify(payload) });
+    statusEl.textContent = '';
+    refreshBriefs();
+  } catch(err){
+    statusEl.textContent = 'Error: ' + err.message;
+  }
+}
+
+/* ---- Audit log ---- */
+async function refreshAuditLog(){
+  const el = document.getElementById('auditList');
+  try {
+    const entries = await apiFetch('/audit-log');
+    el.innerHTML = entries.length
+      ? entries.map(a => `
+          <div class="dash-card">
+            <div class="meta">${escapeHtml(a.agent_name)} · ${escapeHtml(a.actor_label)} · ${new Date(a.created_at).toLocaleString()}</div>
+            <p>${escapeHtml(a.action)}</p>
+          </div>`).join('')
+      : '<div class="dash-empty">No agent activity yet.</div>';
+  } catch(err){
+    el.innerHTML = `<div class="dash-empty">Couldn't load audit log: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+/* scroll reveal */
+const revealEls = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      entry.target.classList.add('in');
+      io.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12 });
+revealEls.forEach(el => io.observe(el));
+
+/* If already logged in, skip straight to the dashboard on load when the login/dashboard view is targeted directly. */
+</script>
+</body>
+</html>
