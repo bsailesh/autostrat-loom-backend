@@ -1,0 +1,4 @@
+# Phase 1 dependencies are now folded into the main requirements.txt (the
+# Anthropic SDK bump the web-search agent needs is shared by the whole app as
+# of Phase 2). Kept as a thin alias so older instructions still work.
+-r requirements.txt

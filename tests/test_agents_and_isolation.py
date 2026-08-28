@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-real")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
@@ -31,7 +32,9 @@ from app.schemas import (  # noqa: E402
 )
 
 # --- isolated in-memory DB per test session, shared connection so :memory: persists ---
-engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+engine = create_engine(
+    "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
 
