@@ -82,12 +82,20 @@ def _run_agent_patches():
     )
 
 
-def start_run(token: str, subject: str) -> dict:
+def set_scope(token: str, product_line: str = "electric ferries", **extra) -> dict:
+    body = {"product_line": product_line, **extra}
+    resp = client.put("/agents/market-insights/scope", json=body, headers=auth_headers(token))
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def start_run(token: str, product_line: str = "electric ferries") -> dict:
+    set_scope(token, product_line)
     p1, p2 = _run_agent_patches()
     with p1, p2:
         resp = client.post(
             "/agents/market-insights/run",
-            json={"subject": subject},
+            json={},
             headers=auth_headers(token),
         )
     assert resp.status_code == 202, resp.text
@@ -259,6 +267,7 @@ def test_run_completes_and_produces_nine_reports():
 
 def test_run_records_failure_on_agent_error():
     owner = _signup("failrunner@agent.test")
+    set_scope(owner["token"], "doomed product line")
 
     class _BoomAgent:
         def __init__(self, *a, **k):
@@ -271,7 +280,7 @@ def test_run_records_failure_on_agent_error():
          patch("app.routers.market_insights.SessionFactory", TestingSessionLocal):
         resp = client.post(
             "/agents/market-insights/run",
-            json={"subject": "doomed subject"},
+            json={},
             headers=auth_headers(owner["token"]),
         )
     assert resp.status_code == 202
@@ -285,7 +294,7 @@ def test_run_records_failure_on_agent_error():
 
 
 def test_run_requires_auth():
-    assert client.post("/agents/market-insights/run", json={"subject": "x y z"}).status_code == 401
+    assert client.post("/agents/market-insights/run", json={}).status_code == 401
 
 
 # --------------------------------------------------------------------------
@@ -348,3 +357,122 @@ def test_other_tenant_cannot_read_via_auth_me_cross_wiring():
     b = _signup("iso-j@corp.test", tenant_name="Corp J")
     assert client.get("/auth/me", headers=auth_headers(a["token"])).json()["tenant_id"] != \
         client.get("/auth/me", headers=auth_headers(b["token"])).json()["tenant_id"]
+
+
+# --------------------------------------------------------------------------
+# Phase 2 addendum — agent scope
+# --------------------------------------------------------------------------
+
+def test_run_without_scope_configured_is_rejected():
+    owner = _signup("noscope@scope.test")
+    with patch("app.routers.market_insights.MarketInsightsAgent", _FakeAgent), \
+         patch("app.routers.market_insights.SessionFactory", TestingSessionLocal):
+        resp = client.post("/agents/market-insights/run", json={}, headers=auth_headers(owner["token"]))
+    assert resp.status_code == 409
+    assert "product line" in resp.json()["detail"].lower()
+    # ...and no run row was created
+    runs = client.get("/agents/market-insights/runs", headers=auth_headers(owner["token"])).json()
+    assert runs == []
+
+
+def test_put_scope_rejects_empty_or_missing_product_line():
+    owner = _signup("emptyscope@scope.test")
+    empty = client.put(
+        "/agents/market-insights/scope",
+        json={"product_line": "   "},
+        headers=auth_headers(owner["token"]),
+    )
+    assert empty.status_code == 400
+    missing = client.put(
+        "/agents/market-insights/scope", json={}, headers=auth_headers(owner["token"])
+    )
+    assert missing.status_code == 400
+
+
+def test_get_scope_before_and_after_configuration():
+    owner = _signup("getscope@scope.test")
+
+    before = client.get("/agents/market-insights/scope", headers=auth_headers(owner["token"]))
+    assert before.status_code == 200
+    assert before.json()["configured"] is False
+    assert before.json()["product_line"] is None
+
+    put = client.put(
+        "/agents/market-insights/scope",
+        json={"product_line": "hydrogen fuel cells", "competitors": "Ballard, Plug Power", "geography": "EU"},
+        headers=auth_headers(owner["token"]),
+    )
+    assert put.status_code == 200
+    assert put.json()["configured"] is True
+
+    after = client.get("/agents/market-insights/scope", headers=auth_headers(owner["token"])).json()
+    assert after["configured"] is True
+    assert after["product_line"] == "hydrogen fuel cells"
+    assert after["competitors"] == "Ballard, Plug Power"
+    assert after["geography"] == "EU"
+
+
+def test_put_scope_updates_in_place_not_duplicates():
+    owner = _signup("updscope@scope.test")
+    set_scope(owner["token"], "first line")
+    set_scope(owner["token"], "second line", competitors="Acme")
+    got = client.get("/agents/market-insights/scope", headers=auth_headers(owner["token"])).json()
+    assert got["product_line"] == "second line"
+    assert got["competitors"] == "Acme"
+
+
+def test_run_feeds_configured_scope_to_the_agent():
+    owner = _signup("feedscope@scope.test")
+    client.put(
+        "/agents/market-insights/scope",
+        json={
+            "product_line": "shipboard battery systems",
+            "competitors": "Corvus Energy, Leclanché",
+            "geography": "Northern Europe",
+        },
+        headers=auth_headers(owner["token"]),
+    )
+
+    _FakeAgent.last_subject = None
+    with patch("app.routers.market_insights.MarketInsightsAgent", _FakeAgent), \
+         patch("app.routers.market_insights.SessionFactory", TestingSessionLocal):
+        resp = client.post("/agents/market-insights/run", json={}, headers=auth_headers(owner["token"]))
+    assert resp.status_code == 202
+
+    subject = _FakeAgent.last_subject
+    assert subject is not None
+    assert "shipboard battery systems" in subject
+    assert "Corvus Energy, Leclanché" in subject
+    assert "Northern Europe" in subject
+
+    # the run row records the same composed subject
+    run = client.get(
+        f"/agents/market-insights/runs/{resp.json()['id']}", headers=auth_headers(owner["token"])
+    ).json()
+    assert run["subject"] == subject
+
+
+def test_run_works_with_only_product_line_no_optional_fields():
+    owner = _signup("minimalscope@scope.test")
+    set_scope(owner["token"], "tugboat propulsion")
+
+    _FakeAgent.last_subject = None
+    with patch("app.routers.market_insights.MarketInsightsAgent", _FakeAgent), \
+         patch("app.routers.market_insights.SessionFactory", TestingSessionLocal):
+        resp = client.post("/agents/market-insights/run", json={}, headers=auth_headers(owner["token"]))
+    assert resp.status_code == 202
+    assert _FakeAgent.last_subject == "tugboat propulsion"
+
+
+def test_scope_is_tenant_isolated():
+    a = _signup("scope-a@corp.test", tenant_name="Scope Corp A")
+    b = _signup("scope-b@corp.test", tenant_name="Scope Corp B")
+
+    set_scope(a["token"], "A's secret product line")
+
+    # B sees nothing configured, and configuring B doesn't touch A.
+    assert client.get("/agents/market-insights/scope", headers=auth_headers(b["token"])).json()["configured"] is False
+    set_scope(b["token"], "B's own product line")
+
+    a_scope = client.get("/agents/market-insights/scope", headers=auth_headers(a["token"])).json()
+    assert a_scope["product_line"] == "A's secret product line"

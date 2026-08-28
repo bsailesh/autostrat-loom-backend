@@ -82,8 +82,26 @@ class InviteAcceptRequest(BaseModel):
 
 # ---------- Market Insights agent ----------
 
+class AgentScopeUpsertRequest(BaseModel):
+    """PUT body for the standing agent scope. product_line is required; the
+    handler returns 400 if it's missing or blank."""
+    product_line: str | None = Field(default=None, description="Required. Product line / market this agent tracks.")
+    competitors: str | None = Field(default=None, description="Optional. Competitors to focus on.")
+    geography: str | None = Field(default=None, description="Optional. Geographic focus.")
+
+
+class AgentScopeResponse(BaseModel):
+    configured: bool
+    agent_type: str
+    product_line: str | None = None
+    competitors: str | None = None
+    geography: str | None = None
+    updated_at: datetime | None = None
+
+
 class MarketInsightsRunRequest(BaseModel):
-    subject: str = Field(min_length=3, description="Market / industry topic to analyze")
+    """The run takes no subject — it uses the tenant's configured scope. These
+    are optional execution tweaks only."""
     model: str | None = Field(default=None, description="Optional model override (e.g. claude-sonnet-5)")
     max_searches: int | None = Field(default=None, ge=1, le=40)
     research_rounds: int | None = Field(default=None, ge=1, le=4)
