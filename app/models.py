@@ -13,7 +13,7 @@ codebase goes through it instead of raw db.query(Model) calls.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Text, Float, ForeignKey, DateTime, JSON
+from sqlalchemy import String, Text, Float, ForeignKey, DateTime, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -130,6 +130,31 @@ class AgentReport(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     confidence_summary: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AgentScope(Base):
+    """
+    The standing research scope for one agent, one per tenant per agent_type.
+    This product runs an agent continuously against a single configured scope,
+    not an ad-hoc topic per request — so the scope lives here and the run
+    endpoint reads it instead of taking a subject in the request body.
+
+    `product_line` is required (a run cannot proceed without it); `competitors`
+    and `geography` are optional refinements.
+    """
+    __tablename__ = "agent_scopes"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "agent_type", name="uq_agent_scope_tenant_agent"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    agent_type: Mapped[str] = mapped_column(String, nullable=False)  # "market-insights"
+    product_line: Mapped[str] = mapped_column(Text, nullable=False)
+    competitors: Mapped[str] = mapped_column(Text, default="")
+    geography: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
 class ContactMessage(Base):

@@ -15,16 +15,18 @@ ever visible to the tenant whose id is on the row.
 """
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_tenant
 from app.database import SessionLocal, get_db
-from app.models import AgentReport, AgentRun, Tenant
+from app.models import AgentReport, AgentRun, AgentScope, Tenant
 from app.schemas import (
     AgentReportOut,
     AgentReportSummary,
     AgentRunOut,
+    AgentScopeResponse,
+    AgentScopeUpsertRequest,
     MarketInsightsRunRequest,
 )
 from app.tenant_scope import get_or_404, scoped_query
@@ -44,18 +46,94 @@ AGENT_TYPE = "market-insights"
 SessionFactory = SessionLocal
 
 
-@router.post("/run", response_model=AgentRunOut, status_code=202)
-def start_run(
-    payload: MarketInsightsRunRequest,
-    background_tasks: BackgroundTasks,
+def _get_scope(db: Session, tenant: Tenant) -> AgentScope | None:
+    return (
+        scoped_query(db, AgentScope, tenant)
+        .filter(AgentScope.agent_type == AGENT_TYPE)
+        .first()
+    )
+
+
+def _compose_subject(scope: AgentScope) -> str:
+    """Turn the configured scope into the single subject string the Phase 1
+    agent module takes (its input handling is unchanged — only the source is)."""
+    parts = [scope.product_line.strip()]
+    if (scope.competitors or "").strip():
+        parts.append(f"Competitor focus: {scope.competitors.strip()}")
+    if (scope.geography or "").strip():
+        parts.append(f"Geographic focus: {scope.geography.strip()}")
+    return " — ".join(parts)
+
+
+def _scope_response(scope: AgentScope | None) -> AgentScopeResponse:
+    if scope is None:
+        return AgentScopeResponse(configured=False, agent_type=AGENT_TYPE)
+    return AgentScopeResponse(
+        configured=True,
+        agent_type=AGENT_TYPE,
+        product_line=scope.product_line,
+        competitors=scope.competitors or None,
+        geography=scope.geography or None,
+        updated_at=scope.updated_at,
+    )
+
+
+@router.get("/scope", response_model=AgentScopeResponse)
+def get_scope(
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
 ):
-    """Kick off a Market Insights run for the caller's tenant. Returns at once."""
+    """Current standing research scope for this tenant, or configured=false."""
+    return _scope_response(_get_scope(db, tenant))
+
+
+@router.put("/scope", response_model=AgentScopeResponse)
+def put_scope(
+    payload: AgentScopeUpsertRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Create or update the scope. product_line is required and non-empty."""
+    product_line = (payload.product_line or "").strip()
+    if not product_line:
+        raise HTTPException(status_code=400, detail="product_line is required and cannot be empty")
+
+    competitors = (payload.competitors or "").strip()
+    geography = (payload.geography or "").strip()
+
+    scope = _get_scope(db, tenant)
+    if scope is None:
+        scope = AgentScope(tenant_id=tenant.id, agent_type=AGENT_TYPE)
+        db.add(scope)
+    scope.product_line = product_line
+    scope.competitors = competitors
+    scope.geography = geography
+    db.commit()
+    db.refresh(scope)
+    return _scope_response(scope)
+
+
+@router.post("/run", response_model=AgentRunOut, status_code=202)
+def start_run(
+    background_tasks: BackgroundTasks,
+    payload: MarketInsightsRunRequest = MarketInsightsRunRequest(),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Kick off a Market Insights run for the caller's tenant, against their
+    configured scope. Returns at once. 409 if no scope is configured yet."""
+    scope = _get_scope(db, tenant)
+    if scope is None or not scope.product_line.strip():
+        raise HTTPException(
+            status_code=409,
+            detail="Product line must be configured before this agent can run. "
+                   "Set it via PUT /agents/market-insights/scope.",
+        )
+
     run = AgentRun(
         tenant_id=tenant.id,
         agent_type=AGENT_TYPE,
-        subject=payload.subject.strip(),
+        subject=_compose_subject(scope),
         status="pending",
     )
     db.add(run)
