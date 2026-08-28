@@ -1,17 +1,33 @@
-import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from app.auth import require_admin_key
-from app.config import get_settings
+from app.auth import get_current_user, issue_session_token, require_admin_key
 from app.database import get_db
 from app.models import ApiKey, Tenant, User
-from app.schemas import LoginRequest, LoginResponse, UserCreate, UserOut
+from app.schemas import (
+    LoginRequest,
+    LoginResponse,
+    MeResponse,
+    SignupRequest,
+    UserCreate,
+    UserOut,
+)
 from app.security import hash_password, verify_password
 
 router = APIRouter(tags=["auth"])
+
+
+def _login_response(token: str, tenant: Tenant, user: User, expires_at: datetime) -> LoginResponse:
+    return LoginResponse(
+        token=token,
+        tenant_id=tenant.id,
+        tenant_name=tenant.name,
+        user_email=user.email,
+        role=user.role,
+        expires_at=expires_at,
+    )
 
 
 @router.post("/admin/tenants/{tenant_id}/users", response_model=UserOut, dependencies=[Depends(require_admin_key)])
@@ -37,9 +53,40 @@ def create_user(tenant_id: str, payload: UserCreate, db: Session = Depends(get_d
     return user
 
 
+@router.post("/auth/signup", response_model=LoginResponse, status_code=201)
+def signup(payload: SignupRequest, db: Session = Depends(get_db)):
+    """
+    Self-serve signup. Every account is a tenant: this creates a new tenant and
+    a single owner user for it, in one transaction, and returns a session token
+    so the caller is immediately logged in.
+    """
+    email = payload.email.strip().lower()
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="A user with this email already exists")
+
+    tenant_name = payload.tenant_name.strip() or f"{email}'s workspace"
+
+    tenant = Tenant(name=tenant_name)
+    db.add(tenant)
+    db.flush()  # need tenant.id
+
+    user = User(
+        tenant_id=tenant.id,
+        email=email,
+        password_hash=hash_password(payload.password),
+        role="owner",
+    )
+    db.add(user)
+    db.flush()  # need user.id for the session token
+
+    session_key = issue_session_token(db, user=user, tenant=tenant)
+    db.commit()
+    return _login_response(session_key.key, tenant, user, session_key.expires_at)
+
+
 @router.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    user = db.query(User).filter(User.email == payload.email.strip().lower()).first()
     if not user or not verify_password(payload.password, user.password_hash):
         # Same error for "no such user" and "wrong password" — don't leak
         # which one it was.
@@ -49,26 +96,20 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not tenant:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    settings = get_settings()
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.session_ttl_hours)
-    session_key = ApiKey(
-        tenant_id=tenant.id,
-        key=f"loom_sess_{secrets.token_urlsafe(32)}",
-        label=f"session:{user.email}",
-        role=user.role,
-        user_id=user.id,
-        expires_at=expires_at,
-    )
-    db.add(session_key)
+    session_key = issue_session_token(db, user=user, tenant=tenant)
     db.commit()
+    return _login_response(session_key.key, tenant, user, session_key.expires_at)
 
-    return LoginResponse(
-        token=session_key.key,
-        tenant_id=tenant.id,
-        tenant_name=tenant.name,
-        user_email=user.email,
+
+@router.get("/auth/me", response_model=MeResponse)
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+    return MeResponse(
+        user_id=user.id,
+        email=user.email,
         role=user.role,
-        expires_at=expires_at,
+        tenant_id=user.tenant_id,
+        tenant_name=tenant.name if tenant else "",
     )
 
 

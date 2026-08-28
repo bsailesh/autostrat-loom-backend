@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 loom.db
 .pytest_cache/
+
+# Phase 1 Market Insights agent generated output
+output/
+
+# Local throwaway venv for running the test suite on an older Python
+.venv-test/

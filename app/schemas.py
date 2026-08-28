@@ -34,6 +34,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class SignupRequest(BaseModel):
+    """Self-serve signup: always creates a tenant with the signer as its owner."""
+    email: str
+    password: str = Field(min_length=8)
+    tenant_name: str = Field(default="", description="Workspace name; defaults to '<email>'s workspace'")
+
+
 class LoginResponse(BaseModel):
     token: str
     tenant_id: str
@@ -41,6 +48,79 @@ class LoginResponse(BaseModel):
     user_email: str
     role: str
     expires_at: datetime
+
+
+class MeResponse(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    tenant_id: str
+    tenant_name: str
+
+
+class InviteCreate(BaseModel):
+    email: str
+    role: str = Field(default="member", description="owner | admin | member")
+
+
+class InviteOut(BaseModel):
+    id: str
+    email: str
+    role: str
+    token: str  # returned here because there's no email delivery in this phase
+    tenant_id: str
+    expires_at: datetime
+    accepted_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class InviteAcceptRequest(BaseModel):
+    token: str
+    password: str = Field(min_length=8)
+
+
+# ---------- Market Insights agent ----------
+
+class MarketInsightsRunRequest(BaseModel):
+    subject: str = Field(min_length=3, description="Market / industry topic to analyze")
+    model: str | None = Field(default=None, description="Optional model override (e.g. claude-sonnet-5)")
+    max_searches: int | None = Field(default=None, ge=1, le=40)
+    research_rounds: int | None = Field(default=None, ge=1, le=4)
+
+
+class AgentRunOut(BaseModel):
+    id: str
+    agent_type: str
+    subject: str
+    status: str
+    error: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AgentReportSummary(BaseModel):
+    id: str
+    run_id: str
+    report_number: int
+    title: str
+    confidence_summary: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AgentReportOut(BaseModel):
+    id: str
+    run_id: str
+    report_number: int
+    title: str
+    content: str
+    confidence_summary: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 # ---------- Contact form ----------

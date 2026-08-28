@@ -15,13 +15,14 @@ short-lived session tokens minted by /auth/login (expires_at set). Both are
 validated the same way here, so routers never need to know which kind
 they're looking at.
 """
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Header, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ApiKey, Tenant
+from app.models import ApiKey, Tenant, User
 from app.config import get_settings
 
 
@@ -62,6 +63,46 @@ def get_current_api_key(
 ) -> ApiKey:
     """Like get_current_tenant, but returns the key row (for role checks / audit labeling)."""
     return _resolve_api_key(authorization, db)
+
+
+def get_current_user(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Resolve the human user behind the bearer token. Only session tokens minted
+    by /auth/login (or /auth/signup, /invites/accept) carry a user_id — a
+    long-lived machine tenant key does not, and is rejected here. Use this
+    dependency wherever an action is attributed to a person (e.g. issuing an
+    invite); use get_current_tenant for pure tenant-data scoping.
+    """
+    api_key = _resolve_api_key(authorization, db)
+    if not api_key.user_id:
+        raise HTTPException(status_code=401, detail="This endpoint requires a user session token")
+    user = db.query(User).filter(User.id == api_key.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
+
+
+def issue_session_token(db: Session, *, user: User, tenant: Tenant) -> ApiKey:
+    """
+    Mint a short-lived bearer token bound to one user and their tenant, stored
+    in the same api_keys table every other bearer token lives in. Caller is
+    responsible for committing. Shared by login / signup / invite-accept so
+    there is exactly one place that defines what a session token looks like.
+    """
+    settings = get_settings()
+    session_key = ApiKey(
+        tenant_id=tenant.id,
+        key=f"loom_sess_{secrets.token_urlsafe(32)}",
+        label=f"session:{user.email}",
+        role=user.role,
+        user_id=user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=settings.session_ttl_hours),
+    )
+    db.add(session_key)
+    return session_key
 
 
 def require_admin_key(x_admin_key: str | None = Header(default=None)) -> None:

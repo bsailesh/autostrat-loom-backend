@@ -76,6 +76,62 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
+class Invite(Base):
+    """
+    A pending invitation for someone to join an *existing* tenant. Created by an
+    owner/admin; accepting one creates a User attached to `tenant_id` — never a
+    new tenant. The token is the capability: whoever holds it and knows the
+    invited email can accept, once, before it expires.
+    """
+    __tablename__ = "invites"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    email: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    role: Mapped[str] = mapped_column(String, default="member")  # role the accepted user gets
+    token: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    invited_by_user_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AgentRun(Base):
+    """
+    One invocation of a long-running agent (Phase 2: Market Insights) for a
+    tenant. The heavy work happens in a background task; `status` tracks it:
+    pending -> running -> succeeded | failed.
+    """
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    agent_type: Mapped[str] = mapped_column(String, nullable=False)  # "market-insights"
+    subject: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="pending")  # pending | running | succeeded | failed
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)  # populated only when status == "failed"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AgentReport(Base):
+    """
+    One report produced by an AgentRun. For Market Insights there are nine per
+    successful run. `tenant_id` is denormalized from the parent run (same
+    pattern as Score/Signal carrying tenant_id alongside their parent FK) so
+    every read goes through the standard tenant-scoped query helpers.
+    """
+    __tablename__ = "agent_reports"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    run_id: Mapped[str] = mapped_column(String, ForeignKey("agent_runs.id"), index=True, nullable=False)
+    report_number: Mapped[int] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence_summary: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class ContactMessage(Base):
     """
     A submission from the public contact form. Not tenant-scoped — the
