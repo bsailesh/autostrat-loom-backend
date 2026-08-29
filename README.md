@@ -61,11 +61,16 @@ try every endpoint without writing any code.
 
 ## 5. Create a demo tenant and sample data
 
+> Legacy path. This populates the archived five-agent dashboard
+> (`legacy/index.html`). The current product creates accounts via self-serve
+> signup (`POST /auth/signup`, gated by `manage_allowlist.py`) and its UI is
+> `frontend/` — see `frontend/README.md` and `PRODUCTION-READINESS.md`.
+
 In a **second terminal** (leave the server running in the first one):
 
 ```
 source venv/bin/activate
-python seed_data.py
+python legacy/seed_data.py
 ```
 
 This creates a demo company ("Acme Industrial Co.") with a few sample
@@ -145,7 +150,11 @@ security review. Before this touches real customer data:
 
 ## 8. Connect the front end
 
-The front end (`index.html`) is now wired to this API for real:
+> The product front end is the React app in `frontend/` (`frontend/README.md`).
+> The section below describes the **archived** single-file dashboard, now at
+> `legacy/index.html` — kept for reference, not part of any deploy.
+
+The archived front end (`legacy/index.html`) is wired to this API for real:
 
 - **Login** calls `POST /auth/login` and stores the returned session token
   in the browser's `localStorage`.
@@ -161,11 +170,11 @@ The front end (`index.html`) is now wired to this API for real:
 To try it:
 
 1. Make sure the server is running (`uvicorn app.main:app --reload`) and
-   you've run `python seed_data.py` at least once.
-2. Open `index.html` directly in a browser (double-click it, or drag it into
-   a browser window).
-3. Click "Log In" and use the demo credentials printed by `seed_data.py`
-   (`demo@acme-industrial.test` / `demo-password-123`).
+   you've run `python legacy/seed_data.py` at least once.
+2. Open `legacy/index.html` directly in a browser (double-click it, or drag
+   it into a browser window).
+3. Click "Log In" and use the demo credentials printed by
+   `legacy/seed_data.py` (`demo@acme-industrial.test` / `demo-password-123`).
 
 If your browser blocks the request as a CORS error, check that
 `CORS_ORIGINS` in `.env` includes the origin you're loading the page from
@@ -173,7 +182,8 @@ If your browser blocks the request as a CORS error, check that
 you deploy the front end to a real domain).
 
 If you deploy the API somewhere other than `http://127.0.0.1:8000`, update
-the `API_BASE` constant near the top of the `<script>` tag in `index.html`.
+the `API_BASE` constant near the top of the `<script>` tag in
+`legacy/index.html`.
 
 ### Email delivery for the contact form
 
@@ -226,6 +236,9 @@ app/
 tests/
   test_agents_and_isolation.py    tenant isolation + agent tests, mocked Claude calls
   test_auth_and_contact.py          login, sessions, and contact-form tests, mocked email
-seed_data.py           creates a demo tenant + login user + sample data
-index.html              the front end, now calling this API directly
+frontend/              the product frontend — Vite + React app (see frontend/README.md)
+manage_allowlist.py    add/remove/list emails on the invite-only signup allowlist
+legacy/                archived, not deployed (old single-file dashboard + its seed script)
+  index.html             old marketing site + embedded five-agent dashboard
+  seed_data.py           created a demo tenant + login user + sample data for it
 ```

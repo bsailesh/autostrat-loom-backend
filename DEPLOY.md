@@ -7,6 +7,16 @@ forgiving way to do this without coding experience. A few steps have an
 optional CLI command as a faster alternative if you're comfortable with a
 terminal.
 
+> **This is the scale-later path (App Runner + RDS Postgres).** The initial
+> deployment uses `DEPLOY-LIGHTSAIL.md` (Lightsail + SQLite) — see
+> `PRODUCTION-READINESS.md`. In particular, the current product frontend is
+> the React app in `frontend/` (build + upload its `dist/`, not `index.html`),
+> and accounts are created via self-serve signup gated by
+> `manage_allowlist.py`, not `seed_data.py`. `index.html` and `seed_data.py`
+> are archived in `legacy/`. Steps 6–8 below still describe the old
+> single-file dashboard flow and need the same updates as
+> `DEPLOY-LIGHTSAIL.md` steps 9–11 before use.
+
 ## Architecture, in one paragraph
 
 The front end stays exactly where it is (S3 + CloudFront). The backend runs

@@ -34,6 +34,25 @@ fine for local work.
 npm run build && npm run preview   # production build check
 ```
 
+## Production build
+
+```bash
+cd frontend
+cp .env.production.example .env.production   # set VITE_API_BASE to the real API domain
+npm ci
+npm run build                               # -> dist/  (index.html + one JS chunk)
+```
+
+Then upload `dist/` to the S3 bucket and invalidate CloudFront (`/*`). `dist/`
+is gitignored — build it at deploy time, don't commit it.
+
+`VITE_API_BASE` is baked in at **build time**. Vite loads `.env.production`
+automatically for `npm run build` and it overrides `.env`, so a prod build
+picks up the real API URL while `npm run dev` still uses `.env` (localhost).
+If `VITE_API_BASE` is unset at build time the bundle falls back to
+`http://127.0.0.1:8000` — a prod build **must** set it. See
+`../PRODUCTION-READINESS.md`.
+
 ## Configuration
 
 `VITE_API_BASE` (default `http://127.0.0.1:8000`) is the only setting. The app
