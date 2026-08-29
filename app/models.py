@@ -96,6 +96,24 @@ class Invite(Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class SignupAllowlist(Base):
+    """
+    Emails permitted to create a brand-new account via /auth/signup. A stopgap
+    access gate for the period before billing exists: without it, a deployed
+    signup page lets anyone create a tenant and trigger real, paid API usage.
+
+    This is not the per-tenant invite flow (see `Invite`, which adds a second
+    user to an *existing* tenant) and it is not retroactive — it only gates new
+    signups. Managed from the command line via `manage_allowlist.py`.
+    """
+    __tablename__ = "signup_allowlist"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    # Stored lowercased so the signup check is case-insensitive.
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    added_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class AgentRun(Base):
     """
     One invocation of a long-running agent (Phase 2: Market Insights) for a
