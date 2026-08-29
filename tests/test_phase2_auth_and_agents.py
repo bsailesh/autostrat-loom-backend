@@ -21,6 +21,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.main import app  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
+from app.models import SignupAllowlist  # noqa: E402
 
 # StaticPool keeps a single shared connection so the :memory: DB created by
 # create_all() below is the same one the app sees through the request thread.
@@ -45,6 +46,21 @@ client = TestClient(app)
 
 def auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _allow(email: str) -> None:
+    """
+    Pre-authorize an email for signup. Since the Pre-Phase 6 addendum, signup
+    is gated on the allowlist; every test that signs up seeds it first, exactly
+    as an operator would with `manage_allowlist.py add`.
+    """
+    db = TestingSessionLocal()
+    try:
+        if not db.query(SignupAllowlist).filter(SignupAllowlist.email == email.strip().lower()).first():
+            db.add(SignupAllowlist(email=email.strip().lower()))
+            db.commit()
+    finally:
+        db.close()
 
 
 # --------------------------------------------------------------------------
@@ -107,6 +123,7 @@ def start_run(token: str, product_line: str = "electric ferries") -> dict:
 # --------------------------------------------------------------------------
 
 def test_signup_creates_tenant_and_owner_and_returns_working_token():
+    _allow("founder@acme.test")
     resp = client.post(
         "/auth/signup",
         json={"email": "founder@acme.test", "password": "supersecret1", "tenant_name": "Acme"},
@@ -124,6 +141,7 @@ def test_signup_creates_tenant_and_owner_and_returns_working_token():
 
 
 def test_signup_defaults_tenant_name_and_lowercases_email():
+    _allow("Solo.Person@Example.test")
     resp = client.post(
         "/auth/signup",
         json={"email": "Solo.Person@Example.test", "password": "supersecret1"},
@@ -135,12 +153,29 @@ def test_signup_defaults_tenant_name_and_lowercases_email():
 
 
 def test_signup_rejects_duplicate_email():
+    _allow("dup@acme.test")
     client.post("/auth/signup", json={"email": "dup@acme.test", "password": "supersecret1"})
     resp = client.post("/auth/signup", json={"email": "dup@acme.test", "password": "supersecret1"})
     assert resp.status_code == 409
 
 
+def test_signup_rejected_when_email_not_on_allowlist():
+    resp = client.post("/auth/signup", json={"email": "stranger@nope.test", "password": "supersecret1"})
+    assert resp.status_code == 403
+    # No tenant or user was created: the email cannot then log in.
+    login = client.post("/auth/login", json={"email": "stranger@nope.test", "password": "supersecret1"})
+    assert login.status_code == 401
+
+
+def test_signup_allowed_once_email_is_on_allowlist():
+    _allow("invited@welcome.test")
+    resp = client.post("/auth/signup", json={"email": "invited@welcome.test", "password": "supersecret1"})
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["role"] == "owner"
+
+
 def test_signup_then_login_roundtrip_uses_bcrypt():
+    _allow("bcrypt@acme.test")
     client.post("/auth/signup", json={"email": "bcrypt@acme.test", "password": "hunter2hunter2"})
     resp = client.post("/auth/login", json={"email": "bcrypt@acme.test", "password": "hunter2hunter2"})
     assert resp.status_code == 200
@@ -155,6 +190,7 @@ def test_signup_then_login_roundtrip_uses_bcrypt():
 # --------------------------------------------------------------------------
 
 def _signup(email: str, password: str = "supersecret1", tenant_name: str = "") -> dict:
+    _allow(email)
     resp = client.post(
         "/auth/signup",
         json={"email": email, "password": password, "tenant_name": tenant_name},

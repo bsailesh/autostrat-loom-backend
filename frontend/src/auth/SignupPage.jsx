@@ -26,7 +26,13 @@ export default function SignupPage() {
       await signup(email.trim(), password, workspace.trim());
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err.status === 409 ? "An account with this email already exists." : err.message || "Sign up failed.");
+      if (err.status === 409) {
+        setError("An account with this email already exists.");
+      } else if (err.status === 403) {
+        setError("Signups are currently invite-only. Contact us for access.");
+      } else {
+        setError(err.message || "Sign up failed.");
+      }
     } finally {
       setBusy(false);
     }

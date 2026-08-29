@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, issue_session_token, require_admin_key
 from app.database import get_db
-from app.models import ApiKey, Tenant, User
+from app.models import ApiKey, SignupAllowlist, Tenant, User
 from app.schemas import (
     LoginRequest,
     LoginResponse,
@@ -61,6 +61,13 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     so the caller is immediately logged in.
     """
     email = payload.email.strip().lower()
+
+    # Pre-Phase 6 stopgap: signups are invite-only until there's billing. Only
+    # emails an operator has added to the allowlist can create a new account.
+    # Existing accounts are unaffected — this gates new signups only.
+    if not db.query(SignupAllowlist).filter(SignupAllowlist.email == email).first():
+        raise HTTPException(status_code=403, detail="Signups are currently invite-only.")
+
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=409, detail="A user with this email already exists")
 
