@@ -10,6 +10,11 @@ Every step below uses the Lightsail browser console, including a
 browser-based SSH terminal — you don't need to install or configure
 anything on your own machine to do this.
 
+> **Read `PRODUCTION-READINESS.md` first.** It has the full Phase 6
+> checklist, the exact backend environment-variable list, the SQLite
+> storage plan, and the frontend production-build steps. This file is the
+> AWS click-through; that file is the decisions and the checklist.
+
 ## What you're building
 
 ```
@@ -87,10 +92,17 @@ which would break your domain.
    nano ~/autostrat-loom-backend/.env
    ```
    At minimum, set:
-   - `ANTHROPIC_API_KEY` — your real key
+   - `ANTHROPIC_API_KEY` — your real key (use a **separate production key**
+     with a spending limit set in the Anthropic console — see
+     `PRODUCTION-READINESS.md` item 3)
    - `LOOM_ADMIN_KEYS` — generate one with:
      `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
    - `CORS_ORIGINS=https://autostrat.net,https://www.autostrat.net`
+     (must be an explicit list, never `*`; the API reads it once at startup,
+     so restart the service after changing it)
+   - `DATABASE_URL=sqlite:////home/ubuntu/autostrat-loom-backend/loom.db`
+     (absolute path — four slashes — so it never depends on the working
+     directory)
    - `CONTACT_EMAIL_TO=saileshathreya@autostrat.net` (already the default)
    - `SMTP_*` values, once you've set up SES or another provider — fine to
      leave blank for now; the contact form still works and just skips
@@ -162,33 +174,46 @@ this server — that's the next step.
    ```
    You should get `{"status":"ok"}` over a real HTTPS connection.
 
-## Step 9 — Create your production tenant
+## Step 9 — Create your production account
 
-From your own machine (or the SSH session — either works):
-
-```
-LOOM_BASE_URL=https://api.autostrat.net LOOM_ADMIN_KEY=<the LOOM_ADMIN_KEYS value from your .env> python seed_data.py
-```
-
-Save the tenant API key and demo login it prints (or create a real user
-for yourself the same way, via `/admin/tenants/{id}/users`).
-
-## Step 10 — Re-deploy the front end
-
-`index.html` already points at `https://api.autostrat.net` automatically
-once it's not running on localhost — no edit needed. Just re-upload it the
-way you always do:
+Signup is invite-only (the pre-Phase-6 allowlist gate). In the SSH session:
 
 ```
-aws s3 cp index.html s3://<your-bucket-name>/index.html
+cd ~/autostrat-loom-backend
+source venv/bin/activate
+python3 manage_allowlist.py add <your-email>
+```
+
+Until an email is on the allowlist, `POST /auth/signup` returns 403. Once it
+is, sign up normally through the frontend (or with a direct
+`POST https://api.autostrat.net/auth/signup`); that creates your tenant with
+you as owner and logs you in.
+
+## Step 10 — Build and deploy the front end
+
+The product frontend is the React app in `frontend/`. (The old single-file
+dashboard is archived in `legacy/` and is not deployed — see
+`legacy/README.md`.) Build it with the production API URL baked in, then
+upload the `dist/` output:
+
+```
+cd frontend
+cp .env.production.example .env.production      # VITE_API_BASE=https://api.autostrat.net
+npm ci
+npm run build                                   # -> frontend/dist/
+aws s3 sync dist/ s3://<your-bucket-name>/ --delete
 aws cloudfront create-invalidation --distribution-id <your-distribution-id> --paths "/*"
 ```
 
+`dist/` is gitignored — you build it at deploy time, you don't commit it.
+If `VITE_API_BASE` is not set at build time the bundle silently falls back
+to `localhost:8000`, so don't skip the `.env.production` step.
+
 ## Step 11 — End-to-end test
 
-Visit `https://autostrat.net`, log in with the credentials from Step 9,
-and run each of the five agents once. Check the Audit Log tab to confirm
-everything's being recorded.
+Visit `https://autostrat.net`, sign up / log in with the account from
+Step 9, configure the Market Insights scope, start a run, and confirm it
+leaves the "configure scope" gate and begins polling.
 
 ---
 
