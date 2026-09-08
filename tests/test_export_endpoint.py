@@ -12,21 +12,15 @@ Tenants are created via the admin route (like test_agents_and_isolation.py),
 not self-serve /auth/signup, to avoid a direct cross-session db write (the
 allowlist row) that the request path wouldn't otherwise touch.
 
-Every test module in this suite defines its own isolated in-memory engine
-and assigns `app.dependency_overrides[get_db]` at import time -- since `app`
-is one shared singleton, only the *last-imported* module's assignment
-survives collection, so running the full suite together silently points
-every other module's HTTP calls at a database its own fixtures never wrote
-to. The `_pin_db_override` fixture below re-asserts (and restores) this
-module's override around each test so it's correct regardless of import
-order or which other test files run alongside it.
+This module defines its own isolated in-memory engine and `override_get_db`;
+tests/conftest.py pins `app.dependency_overrides[get_db]` to it around each
+test in this file, so it's correct regardless of import order or which
+other test files run alongside it (see the conftest module docstring).
 """
 import io
 import os
 import zipfile
 from unittest.mock import patch
-
-import pytest
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-real")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
@@ -54,25 +48,7 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def _pin_db_override():
-    """Guarantee this module's database is the one `client` talks to for the
-    duration of each test, regardless of which test module was collected
-    last (see module docstring). Restores whatever was active afterward so
-    this file doesn't do the same thing to modules that run after it."""
-    previous = app.dependency_overrides.get(get_db)
-    app.dependency_overrides[get_db] = override_get_db
-    try:
-        yield
-    finally:
-        if previous is not None:
-            app.dependency_overrides[get_db] = previous
-        else:
-            app.dependency_overrides.pop(get_db, None)
 
 
 ADMIN_HEADERS = {"X-Admin-Key": "test-admin-key"}
