@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, Play, Settings as SettingsIcon, RefreshCw, AlertTriangle, ChevronLeft } from "lucide-react";
+import { ChevronDown, Play, Settings as SettingsIcon, RefreshCw, AlertTriangle, ChevronLeft, Download } from "lucide-react";
 import { api } from "../api.js";
 import { theme } from "../theme.js";
 import { Badge, Button, Spinner } from "../components/atoms.jsx";
@@ -27,6 +27,8 @@ export default function Workspace() {
   const [contentLoading, setContentLoading] = useState(false);
 
   const [starting, setStarting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const pollRef = useRef(null);
 
   // --- boot: scope + run list ---
@@ -129,6 +131,28 @@ export default function Workspace() {
     }
   }
 
+  // --- export full report pack ---
+  async function onExport() {
+    if (!runId) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      const { blob, filename } = await api.exportRunDocx(runId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setExportError(e.message || "Couldn't export the report pack.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // --- routing guards ---
   if (bootErr) {
     return (
@@ -186,6 +210,18 @@ export default function Workspace() {
             >
               <SettingsIcon size={16} color={theme.textMuted} />
             </button>
+            {viewedRun && viewedRun.status === "succeeded" && (
+              <Button
+                small
+                variant="ghost"
+                title="Export the full 9-report pack as a Word document (not just the report you're viewing)"
+                icon={exporting ? undefined : Download}
+                disabled={exporting}
+                onClick={onExport}
+              >
+                {exporting ? "Exporting…" : "Export .docx"}
+              </Button>
+            )}
             <Button
               small
               variant="primary"
@@ -212,6 +248,11 @@ export default function Workspace() {
           {runsError && (
             <p style={{ color: theme.danger, fontSize: 13, marginBottom: 14, display: "flex", gap: 6, alignItems: "center" }}>
               <AlertTriangle size={14} /> {runsError}
+            </p>
+          )}
+          {exportError && (
+            <p style={{ color: theme.danger, fontSize: 13, marginBottom: 14, display: "flex", gap: 6, alignItems: "center" }}>
+              <AlertTriangle size={14} /> {exportError}
             </p>
           )}
 
