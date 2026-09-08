@@ -87,4 +87,33 @@ export const api = {
   getRun: (runId) => apiFetch(`/agents/market-insights/runs/${runId}`),
   listRunReports: (runId) => apiFetch(`/agents/market-insights/runs/${runId}/reports`),
   getReport: (reportId) => apiFetch(`/agents/market-insights/reports/${reportId}`),
+
+  // Full report pack as .docx -- not JSON, so this doesn't go through
+  // apiFetch. Returns {blob, filename} for the caller to trigger a download.
+  exportRunDocx: async (runId) => {
+    const session = getSession();
+    const resp = await fetch(API_BASE + `/agents/market-insights/runs/${runId}/export.docx`, {
+      headers: session ? { Authorization: "Bearer " + session.token } : {},
+    });
+    if (resp.status === 401) {
+      clearSession();
+      window.dispatchEvent(new Event("loom:unauthorized"));
+      throw new ApiError("Your session has expired — please sign in again.", 401);
+    }
+    if (!resp.ok) {
+      let detail = resp.statusText;
+      try {
+        const body = await resp.json();
+        if (body && body.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      } catch {
+        /* keep statusText */
+      }
+      throw new ApiError(detail, resp.status);
+    }
+    const disposition = resp.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    const filename = match ? match[1] : `${runId}.docx`;
+    const blob = await resp.blob();
+    return { blob, filename };
+  },
 };

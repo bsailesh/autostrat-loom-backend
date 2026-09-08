@@ -16,3 +16,8 @@ output/
 .env.*
 **/.env
 **/.env.*
+
+# Export QA output
+export_preview*.docx
+export_preview*.pdf
+~$*.docx

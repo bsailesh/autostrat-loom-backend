@@ -13,13 +13,17 @@ the Phase 3+ move so runs survive a process restart and can be scaled out.)
 Every read is tenant-scoped through app/tenant_scope.py: a run or report is only
 ever visible to the tenant whose id is on the row.
 """
+import io
 import logging
+import re
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_tenant
 from app.database import SessionLocal, get_db
+from app.export.docx_builder import ExportBuilder
 from app.models import AgentReport, AgentRun, AgentScope, Tenant
 from app.schemas import (
     AgentReportOut,
@@ -195,6 +199,65 @@ def get_report(
     db: Session = Depends(get_db),
 ):
     return get_or_404(db, AgentReport, tenant, report_id)
+
+
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+_SLUG_STRIP_RE = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _filename_slug(run: AgentRun) -> str:
+    """ASCII-safe, truncated slug for the export filename, derived from the
+    run's own scope snapshot (`run.subject`) -- not the possibly-since-edited
+    current AgentScope. Falls back to the run id if nothing usable survives."""
+    basis = (run.subject or "").split("—")[0].strip()
+    slug = _SLUG_STRIP_RE.sub("_", basis).strip("_")
+    slug = slug[:60].strip("_")
+    return slug or run.id
+
+
+@router.get("/runs/{run_id}/export.docx")
+def export_run_docx(
+    run_id: str,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """The full report pack for a run, rendered to a single .docx on demand
+    from the stored markdown. See word_export_briefing.md.
+
+    Synchronous and built entirely in memory (no temp files, no job queue --
+    the production instance has 414MB RAM, so reports are streamed off the
+    query cursor and rendered one at a time rather than loaded as a list).
+    """
+    run = get_or_404(db, AgentRun, tenant, run_id)  # 404s (not 403) outside this tenant
+
+    report_rows = (
+        scoped_query(db, AgentReport, tenant)
+        .filter(AgentReport.run_id == run.id)
+        .order_by(AgentReport.report_number.asc())
+    )
+    if report_rows.first() is None:
+        raise HTTPException(status_code=404, detail="This run has no reports yet")
+
+    builder = ExportBuilder()
+    scope = _get_scope(db, tenant)
+    builder.add_cover_page(
+        scope_summary=run.subject or (scope.product_line if scope else ""),
+        run_date=run.created_at.date().isoformat(),
+    )
+    builder.add_toc()
+
+    for row in report_rows.yield_per(1):  # iterate the cursor, never materialize the list
+        builder.add_report(row.content, report_number=row.report_number, title=row.title)
+
+    docx_bytes = builder.to_bytes()
+    filename = f"AutoStrat_Loom_Market_Insights_{_filename_slug(run)}_{run.created_at.date().isoformat()}.docx"
+
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type=DOCX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --------------------------------------------------------------------------
