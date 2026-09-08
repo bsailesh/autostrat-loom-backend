@@ -127,7 +127,7 @@ first (a **private** repo is fine and recommended).
    SMTP_USER                    = <SES SMTP username>
    SMTP_PASSWORD                 = <SES SMTP password>
    SMTP_FROM                      = no-reply@autostrat.net
-   CORS_ORIGINS                    = https://autostrat.net,https://www.autostrat.net
+   CORS_ORIGINS                    = https://autostrat.net,https://www.autostrat.net,https://app.autostrat.net
    ```
    For anything sensitive here (the Anthropic key, DB password, SMTP
    password), App Runner also supports referencing a Secrets Manager secret

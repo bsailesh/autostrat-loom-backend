@@ -8,14 +8,22 @@ distribution, DNS, and Lightsail instance are done manually in the console.
 Follow `DEPLOY-LIGHTSAIL.md` for that click-through; this file is the checklist
 and the decisions behind it.
 
-Target shape (unchanged from `DEPLOY-LIGHTSAIL.md`):
+Target shape (matches `DEPLOY-LIGHTSAIL.md`):
 
 ```
-Browser → CloudFront + S3 (autostrat.net)        [frontend: the Phase 5 React app in frontend/]
+Browser → CloudFront + S3 (app.autostrat.net)     [frontend: the Phase 5 React app in frontend/]
                  ↓ fetch()
           Lightsail instance (api.autostrat.net)  [backend: uvicorn + Caddy for HTTPS]
             └─ SQLite file on the instance disk
 ```
+
+Three distinct domains are in play:
+
+- `autostrat.net` — marketing site (bucket `autostrat-temp-site`,
+  distribution `E2ZCVTWM9KA4M8`)
+- `app.autostrat.net` — the React product (bucket `autostrat-app`,
+  distribution `E2YF1Y0LAQQTFV`)
+- `api.autostrat.net` — the backend (Lightsail `Ubuntu-1`, `44.253.87.35`)
 
 ---
 
@@ -25,14 +33,16 @@ Browser → CloudFront + S3 (autostrat.net)        [frontend: the Phase 5 React 
   Comma-separated list of allowed browser origins. Nothing is hardcoded.
 - The default is `*`, which is **local-dev only**. Production **must** set an
   explicit list.
-- Verified: with `CORS_ORIGINS="https://autostrat.net,https://www.autostrat.net"`,
+- Verified: with `CORS_ORIGINS="https://autostrat.net,https://www.autostrat.net,https://app.autostrat.net"`,
   a request from an allowed `Origin` gets that origin echoed in
   `Access-Control-Allow-Origin`; any other origin gets **no** CORS header, so
   the browser blocks the call.
 - `CORS_ORIGINS` is read **once at startup**. Changing it requires
   `sudo systemctl restart loom-api`.
-- Set it to the final frontend domain(s) once DNS is decided — expected:
-  `https://autostrat.net,https://www.autostrat.net`.
+- Set it to the final frontend domain(s), subdomains included — the product
+  frontend is served from `https://app.autostrat.net`, and listing the bare
+  domain does not cover it:
+  `https://autostrat.net,https://www.autostrat.net,https://app.autostrat.net`.
 
 ## 2. Database — staying on SQLite (deliberate) ✅
 
@@ -68,7 +78,7 @@ Start from `.env.example`.
 | Variable | Required | Value to set | Notes |
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | **yes** | a **separate production key** | See note below — set a spending limit in the Anthropic console. |
-| `CORS_ORIGINS` | **yes** | `https://autostrat.net,https://www.autostrat.net` | Exact frontend origin(s). No `*`. Restart on change. |
+| `CORS_ORIGINS` | **yes** | `https://autostrat.net,https://www.autostrat.net,https://app.autostrat.net` | Exact frontend origin(s), subdomains included. No `*`. Restart on change. |
 | `DATABASE_URL` | recommended | `sqlite:////home/ubuntu/autostrat-loom-backend/loom.db` | Absolute path (item 2). Omit to accept the relative default. |
 | `LOOM_ADMIN_KEYS` | **yes** | a long random string | Gates `POST /admin/tenants`. Generate: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `SESSION_TTL_HOURS` | no | `24` (default) | Login session lifetime. |
@@ -118,6 +128,11 @@ in the deploy path.
   (`demo@autostrat.net` / a static password check) never existed in the
   archived file either — its `handleLogin()` already calls the real
   `POST /auth/login` (replaced in commit `3abd1e3`). Nothing to disable.
+- Since then, the marketing site's "Log in" links have been repointed to
+  `https://app.autostrat.net`, and the orphaned `/login` and `/login.html`
+  objects were deleted from the `autostrat-temp-site` bucket on 8 Sept 2026.
+  The distribution has a custom error response that sends unmatched paths to
+  the homepage.
 - `seed_data.py` (which populated the old dashboard) is archived alongside it
   in `legacy/`. Production accounts are created via self-serve signup
   (`POST /auth/signup`, gated by `manage_allowlist.py`), not that script.
@@ -151,6 +166,11 @@ Backend and infra — full click-through in `DEPLOY-LIGHTSAIL.md`:
 - [ ] Install Caddy + `deploy/lightsail/Caddyfile`; add `api.<domain>` A record → static IP; `curl https://api.<domain>/health`.
 - [ ] On the server: `python3 manage_allowlist.py add <your-email>` — signup returns 403 until an email is on the allowlist.
 - [ ] Sign up through the app (or via `POST /auth/signup`) to create your production account.
+- [ ] Add 2 GB swap and set `vm.swappiness=20` — **required on the 512 MB plan**.
+- [ ] Mask `fwupd.service` and disable the `fwupd-refresh` units.
+- [ ] Confirm the instance name after creation; it can silently default.
+- [ ] Verify `CORS_ORIGINS` with `grep` after editing, before restarting.
+- [ ] Check Cloudflare for stale records pointing at any previous instance.
 
 Frontend:
 
@@ -158,8 +178,25 @@ Frontend:
 - [ ] `npm ci && npm run build`.
 - [ ] Upload `frontend/dist/` to the S3 bucket; CloudFront invalidation `/*`.
 - [ ] Confirm nothing from `legacy/` is in the upload (item 5) — only `frontend/dist/` goes to S3.
+- [ ] ACM certificate for `app.<domain>` exists **in us-east-1**.
+- [ ] CloudFront "Default root object" set to `index.html`.
+- [ ] Cloudflare CNAME for `app` points at the distribution.
+- [ ] `--delete` used on `s3 sync` so old hashed bundles do not accumulate.
 
 Verify:
 
-- [ ] Load `https://autostrat.net`, sign up / log in, configure the Market Insights scope, start a run, confirm it moves out of the gate and polls.
+- [ ] Load `https://app.autostrat.net` (not the marketing site at
+      `autostrat.net`), sign up / log in, configure the Market Insights
+      scope, start a run, confirm it moves out of the gate and polls.
 - [ ] Turn on automatic daily **Lightsail snapshots** (SQLite backup).
+
+## Operational baseline
+
+What a healthy instance looks like, so a future outage can be compared
+against it:
+
+- `loom-api` active, ~107 MB resident.
+- `free -h`: ~414 Mi total, ~116 Mi available, 2.0 Gi swap with ~30 Mi used.
+- `https://api.autostrat.net/health` returns `{"status":"ok"}`.
+- `https://api.autostrat.net/` returns `{"detail":"Not Found"}` — this is
+  **healthy**, it's FastAPI's 404 for an undefined root route, not an error.
