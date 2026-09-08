@@ -10,3 +10,9 @@ output/
 
 # Local throwaway venv for running the test suite on an older Python
 .venv-test/
+
+# Environment files in any directory
+.env
+.env.*
+**/.env
+**/.env.*
