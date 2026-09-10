@@ -86,7 +86,13 @@ class AgentScopeUpsertRequest(BaseModel):
     """PUT body for the standing agent scope. product_line is required; the
     handler returns 400 if it's missing or blank."""
     product_line: str | None = Field(default=None, description="Required. Product line / market this agent tracks.")
-    competitors: str | None = Field(default=None, description="Optional. Competitors to focus on.")
+    competitors: str | None = Field(
+        default=None,
+        description=(
+            "Optional. Competitors the user wants explicitly covered. Does not limit "
+            "which competitors the agent discovers."
+        ),
+    )
     geography: str | None = Field(default=None, description="Optional. Geographic focus.")
 
 

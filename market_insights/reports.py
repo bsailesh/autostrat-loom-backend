@@ -67,7 +67,11 @@ REPORTS: list[ReportSpec] = [
         opening="key_insights",
         must_include=(
             "Competitor profiles; new product announcements; partnerships; "
-            "acquisitions; public product positioning; market observations."
+            "acquisitions; public product positioning; market observations. "
+            "Profile up to 10 competitors, ranked by market significance. Close the report "
+            "with an 'Also identified' list naming every other competitor found, each with "
+            "a one-line reason it is not profiled (for example: insufficient public "
+            "disclosure, adjacent market, below significance threshold)."
         ),
         exhibit=(
             "Include a color-coded competitor activity table (competitor × activity "
@@ -80,7 +84,10 @@ REPORTS: list[ReportSpec] = [
         title="Competitive Feature Comparison Matrix",
         opening="key_insights",
         must_include=(
-            "Compare the current product plus up to four competitors. Include ONLY "
+            "Compare the current product plus the 5 most significant competitors (6 columns "
+            "total, which is what fits one landscape page). Selection is by evidence-based "
+            "significance, not by whether the user named them. Below the grid, list any "
+            "competitor excluded from it with a one-line reason. Include ONLY "
             "verifiable public information. Do not speculate about undisclosed "
             "capabilities. If no single 'current product' is defined by the subject, "
             "state that and compare the leading vendors' flagship offerings, naming "
@@ -90,7 +97,8 @@ REPORTS: list[ReportSpec] = [
             "REQUIRED exhibit: a Harvey Ball grid (rows = features such as product "
             "portfolio, performance specs, positioning, digital capabilities, "
             "connectivity, service offerings, warranty, sustainability claims, public "
-            "differentiators; columns = the reference product + up to 4 competitors). "
+            "differentiators; columns = the reference product + up to 5 competitors, 6 "
+            "columns maximum). "
             "Render Harvey Balls with the legend: ● full / ◕ strong / ◑ partial / "
             "◔ limited / ○ none / — undisclosed. Every filled cell must be traceable "
             "to a cited public source; use — where the capability is undisclosed."

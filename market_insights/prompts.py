@@ -70,9 +70,10 @@ FACT-OBSERVATION-INTERPRETATION-FORECAST-UNKNOWN):
      definition; plus bottom-up inputs)
   2. Market landscape (mature / emerging / declining / white-space / adjacent
      markets; segmentation; geographic patterns; consolidation)
-  3. Competitors (profiles of the leading players; new products; discontinuations;
-     pricing announcements; partnerships; acquisitions; JVs; capacity /
-     manufacturing investment)
+  3. Competitors (independently identify the significant players from evidence —
+     do not assume the competitive set is limited to any user-named companies;
+     profiles; new products; discontinuations; pricing announcements;
+     partnerships; acquisitions; JVs; capacity / manufacturing investment)
   4. Competitive features (per-vendor public feature/spec/positioning facts for a
      feature comparison matrix)
   5. Customer demand & segments (demand shifts by segment; buying and purchasing

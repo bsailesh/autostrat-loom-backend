@@ -63,7 +63,11 @@ def _compose_subject(scope: AgentScope) -> str:
     agent module takes (its input handling is unchanged — only the source is)."""
     parts = [scope.product_line.strip()]
     if (scope.competitors or "").strip():
-        parts.append(f"Competitor focus: {scope.competitors.strip()}")
+        parts.append(
+            "Competitors the user has specifically asked about (include these in the "
+            "analysis, but do not limit the competitive set to them): "
+            f"{scope.competitors.strip()}"
+        )
     if (scope.geography or "").strip():
         parts.append(f"Geographic focus: {scope.geography.strip()}")
     return " — ".join(parts)
