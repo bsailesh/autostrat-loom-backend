@@ -438,9 +438,15 @@ Describe how these factors influence the market.
 
 ![](media/image15.png){width="6.5in" height="3.848611111111111in"}
 
+**Competitor Set Definition**
+
+You must independently identify the significant competitors in this market from evidence, not rely on a supplied list. There is no cap on how many you may discover. Any competitors the user has named are guaranteed to appear somewhere in the reports, but they do not define or limit the competitive set, and they earn a comparison-grid column only if they rank among the most significant by evidence. If a user-named competitor proves insignificant, publicly undisclosed, or in an adjacent market, say so explicitly in the "Also identified" list rather than omitting it.
+
+Rank competitors by market significance: revenue or share where disclosed, platform or program presence, breadth of public technical disclosure, and recent structural activity.
+
 **Competitor Comparison**
 
-Compare the current product against up to four competitors using only publicly available information.
+Compare the current product against the most significant competitors using only publicly available information.
 
 Compare:
 
@@ -536,7 +542,7 @@ Include:
 
 #### Report 4 --- Competitive Feature Comparison Matrix
 
-Compare: Current product plus up to four competitors. Include only verifiable public information.
+Compare: Current product plus the 5 most significant competitors (6 columns total, which is what fits one landscape page). Selection is by evidence-based significance, not by whether the user named them. Below the grid, list any competitor excluded from it with a one-line reason. Include only verifiable public information.
 
 #### Report 5 --- Customer Demand Report
 

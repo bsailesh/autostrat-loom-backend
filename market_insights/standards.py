@@ -227,7 +227,8 @@ calculated (e.g. Number of Accounts × Annual Contract Value).
 Competitive Monitoring: Continuously monitor new product introductions, product
 discontinuations, publicly available pricing announcements, partnerships,
 acquisitions, joint ventures, capacity expansion, and manufacturing investments.
-Describe factual observations.
+This monitoring covers all competitors identified through independent discovery,
+not only those the user named. Describe factual observations.
 
 Customer Segment Analysis: Identify changes in industries served, fleet
 operators, government customers, commercial customers, OEMs, tier suppliers, and
@@ -240,11 +241,25 @@ External Market Forces: Monitor economic conditions, commodity price impacts,
 labor trends, global trade, supply chain disruptions, geopolitical events,
 inflation, and energy prices. Describe how these factors influence the market.
 
-Competitor Comparison: Compare the current product against up to four competitors
-using only publicly available information. Compare product portfolio, performance
-specifications, market positioning, digital capabilities, connectivity, service
-offerings, warranty (if publicly disclosed), sustainability claims, and public
-differentiators. Do not speculate about undisclosed capabilities.
+Competitor Set Definition: You must independently identify the significant
+competitors in this market from evidence, not rely on a supplied list. There is
+no cap on how many you may discover. Any competitors the user has named are
+guaranteed to appear somewhere in the reports, but they do not define or limit
+the competitive set, and they earn a comparison-grid column only if they rank
+among the most significant by evidence. If a user-named competitor proves
+insignificant, publicly undisclosed, or in an adjacent market, say so explicitly
+in the "Also identified" list rather than omitting it.
+
+Rank competitors by market significance: revenue or share where disclosed,
+platform or program presence, breadth of public technical disclosure, and
+recent structural activity.
+
+Competitor Comparison: Compare the current product against the most significant
+competitors using only publicly available information. Compare product
+portfolio, performance specifications, market positioning, digital capabilities,
+connectivity, service offerings, warranty (if publicly disclosed), sustainability
+claims, and public differentiators. Do not speculate about undisclosed
+capabilities.
 
 SWOT: Generate a market-based SWOT only. Each item shall include Observation,
 Supporting evidence, Source, Observation date, and Confidence. Do not include
