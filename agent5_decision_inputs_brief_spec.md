@@ -144,11 +144,16 @@ schedulable.
 ```
 project_id, project, type, status, pct_complete,
 effort_remaining_<bucket_id>  [one column per bucket],
+effort_total_<bucket_id>      [one column per bucket, optional],
 target_gate, target_fy, owner, mandatory, mandatory_driver, mandatory_deadline
 ```
 
 **Effort must be remaining, not total.** A project 80% through a 40-week build
 has 8 weeks left. Total effort systematically misranks everything underway.
+`effort_total_<bucket_id>` is supplied separately, independently optional per
+bucket, purely so the ingest validation below can sanity-check
+`pct_complete` against it — it is never used in place of
+`effort_remaining_<bucket_id>` for scoring or capacity.
 
 `mandatory` is a customer declaration, not an agent inference. The agent may
 observe that a project appears compliance-driven, but only the customer knows
@@ -278,7 +283,8 @@ and what must accompany them.
 |---|---|
 | Every roadmap effort column matches a declared `bucket_id` | Error |
 | Every capacity row's `bucket_id` is declared | Error |
-| `pct_complete` and effort remaining are consistent with total where both given | Warning |
+| `effort_remaining_<bucket_id>` exceeds `effort_total_<bucket_id>` where both given, per bucket | Warning |
+| Declared `pct_complete` vs. effort-implied completion, aggregated over buckets where both remaining and total are given (skipped silently if none are) | Warning |
 | Dependency references resolve to known `project_id`s | Error |
 | Platform rows sum to a plausible installed base | Warning |
 | Fiscal years in capacity cover the horizon of `target_fy` in roadmap | Warning |

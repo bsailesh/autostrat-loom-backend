@@ -147,6 +147,238 @@ class AgentReportOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ---------- Strategy Synthesis agent ----------
+
+class CapacityBucketIn(BaseModel):
+    bucket_key: str = Field(description="Used verbatim as a CSV column header -- letters/digits/underscore, starts with a letter")
+    bucket_name: str
+    contractable: str = Field(default="no", description="yes | partial | no")
+    note: str = ""
+
+
+class CapacityBucketsUpsertRequest(BaseModel):
+    """PUT body: the complete set of buckets for this tenant, 2-8 entries.
+    Replaces whatever was previously declared."""
+    buckets: list[CapacityBucketIn]
+
+
+class CapacityBucketOut(BaseModel):
+    id: str
+    bucket_key: str
+    bucket_name: str
+    contractable: str
+    note: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class IngestIssueOut(BaseModel):
+    severity: str  # "error" | "warning"
+    row: int | None
+    field: str | None
+    message: str
+
+
+class IngestResultOut(BaseModel):
+    file_type: str
+    row_count: int
+    stored: bool
+    validation_status: str
+    errors: list[IngestIssueOut]
+    warnings: list[IngestIssueOut]
+
+
+class BriefFileOut(BaseModel):
+    id: str
+    file_type: str
+    filename: str
+    as_of: datetime | None
+    uploaded_by: str
+    row_count: int
+    validation_status: str
+    issues: list[IngestIssueOut]
+    is_stale: bool
+    created_at: datetime
+
+
+class StrategyRunRequest(BaseModel):
+    """Optional execution tweaks. fiscal_year defaults to the tenant's
+    current fiscal year (from strategy_config, or the sole fiscal year
+    present in capacity data) when omitted. A run is never blocked by an
+    incomplete brief -- see GET /readiness for what's missing and why."""
+    fiscal_year: str | None = None
+    upstream_run_overrides: dict[str, str] | None = Field(
+        default=None,
+        description="agent_type -> run_id, overriding the default most-recent-successful selection per agent",
+    )
+    model: str | None = Field(default=None, description="Optional model override (e.g. claude-sonnet-5)")
+
+
+class EffortBandIn(BaseModel):
+    band_name: str
+    min_units: float | None = None
+    max_units: float | None = None
+
+
+class EffortBandOut(BaseModel):
+    id: str
+    band_name: str
+    min_units: float | None
+    max_units: float | None
+
+    model_config = {"from_attributes": True}
+
+
+class StrategyRuleIn(BaseModel):
+    rule_type: str
+    value: str = ""
+    note: str = ""
+
+
+class StrategyRuleOut(BaseModel):
+    id: str
+    rule_type: str
+    value: str
+    note: str
+
+    model_config = {"from_attributes": True}
+
+
+class StrategyConfigUpsertRequest(BaseModel):
+    effort_unit: str = "weeks"
+    fiscal_year_start_month: int = Field(default=1, ge=1, le=12)
+    fiscal_year_label_format: str = "FY{yy}"
+    project_types: list[str] = Field(default_factory=list)
+    effort_bands: list[EffortBandIn] = Field(default_factory=list)
+    rules: list[StrategyRuleIn] = Field(default_factory=list)
+
+
+class StrategyConfigResponse(BaseModel):
+    configured: bool
+    effort_unit: str
+    fiscal_year_start_month: int
+    fiscal_year_label_format: str
+    project_types: list[str]
+    effort_bands: list[EffortBandOut]
+    rules: list[StrategyRuleOut]
+
+
+class StrategicObjectiveIn(BaseModel):
+    objective_key: str
+    text: str
+    horizon: str = ""
+    owner: str = ""
+    measure: str = ""
+
+
+class StrategicObjectivesUpsertRequest(BaseModel):
+    objectives: list[StrategicObjectiveIn]
+
+
+class StrategicObjectiveOut(BaseModel):
+    id: str
+    objective_key: str
+    text: str
+    horizon: str
+    owner: str
+    measure: str
+
+    model_config = {"from_attributes": True}
+
+
+class PrioritizationCriterionIn(BaseModel):
+    criterion: str
+    weight: float = Field(ge=0, le=1)
+    source_agent: str = ""
+
+
+class FrameworkUpsertRequest(BaseModel):
+    framework: str = "weighted_scoring"
+    criteria: list[PrioritizationCriterionIn]
+
+
+class PrioritizationCriterionOut(BaseModel):
+    criterion: str
+    weight: float
+    source_agent: str
+
+    model_config = {"from_attributes": True}
+
+
+class FrameworkResponse(BaseModel):
+    configured: bool
+    framework: str
+    criteria: list[PrioritizationCriterionOut]
+
+
+class ScenarioWeightIn(BaseModel):
+    criterion: str
+    weight: float
+
+
+class ScenarioIn(BaseModel):
+    name: str
+    emphasis: str = ""
+    weights: list[ScenarioWeightIn]
+
+
+class ScenariosUpsertRequest(BaseModel):
+    scenarios: list[ScenarioIn]
+
+
+class ScenarioWeightOut(BaseModel):
+    criterion: str
+    weight: float
+
+    model_config = {"from_attributes": True}
+
+
+class ScenarioOut(BaseModel):
+    id: str
+    name: str
+    emphasis: str
+    weights: list[ScenarioWeightOut]
+
+
+class ReadinessItemOut(BaseModel):
+    item: str
+    status: str  # "set" | "missing"
+    consequence: str
+
+
+class CitationOut(BaseModel):
+    agent: str
+    report_number: int
+    section: str
+    classification: str
+    confidence: str
+    summary: str
+
+
+class CandidatePatchRequest(BaseModel):
+    status: str = Field(description="under_review | scoped | dismissed")
+    dismissal_reason: str = ""
+
+
+class DiscoveredCandidateOut(BaseModel):
+    id: str
+    candidate_key: str
+    name: str
+    origin: str
+    problem_addressed: str
+    evidence_summary: str
+    support_classification: str
+    source_citations: list[CitationOut]
+    status: str
+    dismissal_reason: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # ---------- Contact form ----------
 
 class ContactRequest(BaseModel):
