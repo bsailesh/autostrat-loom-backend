@@ -16,7 +16,11 @@ Usage:
     python -m scripts.agent5_smoke_test --base-url https://api.example.com --api-key sk_live_...
 
 Or via environment variables (no credentials are hardcoded in this file):
-    AGENT5_BASE_URL, AGENT5_API_KEY, AGENT5_MODEL (optional model override)
+    AGENT5_BASE_URL, AGENT5_API_KEY, AGENT5_MODEL (optional model override),
+    AGENT5_UPSTREAM_RUN (optional, comma-separated agent_type=run_id pairs --
+    pins an upstream agent's run instead of the backend's own
+    most-recent-successful default; --upstream-run is the repeatable CLI
+    equivalent, one agent_type=run_id pair per flag)
 
 Each step prints its own result so a failure is immediately locatable.
 """
@@ -176,6 +180,15 @@ DEPENDENCIES = [
 
 DEFAULT_FISCAL_YEAR = "FY27"
 
+# Agent types this script knows how to list runs for, and so can look up the
+# backend's own default (most-recent-successful) selection for. Only
+# market-insights is implemented as an upstream agent today -- an agent_type
+# not listed here can still be pinned via --upstream-run/AGENT5_UPSTREAM_RUN,
+# it's just not visible in the "default" half of the printed selection below.
+KNOWN_UPSTREAM_AGENT_RUN_ENDPOINTS = {
+    "market-insights": "/agents/market-insights/runs",
+}
+
 
 # ---------------------------------------------------------------------------
 # CSV builders
@@ -318,6 +331,51 @@ def put_json(client: httpx.Client, path: str, payload: dict, step: str) -> dict:
     return body
 
 
+def parse_upstream_overrides(cli_values: list[str], env_value: str | None) -> dict[str, str]:
+    """--upstream-run entries win outright over AGENT5_UPSTREAM_RUN (a
+    comma-separated list of the same agent_type=run_id pairs, since env vars
+    can't repeat) -- the two are not merged, matching how --api-key/--base-url
+    already treat their env fallbacks."""
+    pairs = list(cli_values) if cli_values else [
+        p.strip() for p in (env_value or "").split(",") if p.strip()
+    ]
+    overrides: dict[str, str] = {}
+    for pair in pairs:
+        if "=" not in pair:
+            raise SmokeTestFailure(
+                f"--upstream-run / AGENT5_UPSTREAM_RUN entry {pair!r} must be agent_type=run_id"
+            )
+        agent_type, run_id = pair.split("=", 1)
+        overrides[agent_type.strip()] = run_id.strip()
+    return overrides
+
+
+def resolve_upstream_selection(client: httpx.Client, overrides: dict[str, str]) -> dict[str, tuple[str | None, str]]:
+    """What load_upstream_text (app/strategy_synthesis_service.py) will
+    actually attach to the run: an explicit override if given, else the same
+    most-recent-successful lookup the backend itself falls back to. Returns
+    agent_type -> (run_id_or_None, reason), for printing before the run
+    starts so it's obvious whether anything real got attached."""
+    selection: dict[str, tuple[str | None, str]] = {}
+    for agent_type in sorted(set(KNOWN_UPSTREAM_AGENT_RUN_ENDPOINTS) | set(overrides)):
+        if agent_type in overrides:
+            selection[agent_type] = (overrides[agent_type], "explicit override")
+            continue
+        path = KNOWN_UPSTREAM_AGENT_RUN_ENDPOINTS.get(agent_type)
+        if path is None:
+            selection[agent_type] = (None, "unknown agent type -- pass --upstream-run to pin it")
+            continue
+        resp = _request(client, "GET", path)
+        _require_ok(resp, f"GET {path}")
+        succeeded = [r for r in resp.json() if r["status"] == "succeeded"]
+        if succeeded:
+            # already ordered by created_at desc, per the endpoint's own query
+            selection[agent_type] = (succeeded[0]["id"], "default: most recent successful")
+        else:
+            selection[agent_type] = (None, "no successful run found -- will be omitted from the brief")
+    return selection
+
+
 def upload_csv(client: httpx.Client, file_type: str, csv_text: str) -> dict:
     resp = _request(
         client, "POST", f"/agents/strategy/files/{file_type}",
@@ -349,6 +407,10 @@ def main() -> int:
                               "If omitted, the server decides -- see printed note below.")
     parser.add_argument("--fiscal-year", default=DEFAULT_FISCAL_YEAR,
                          help=f"Fiscal year to run against (default: {DEFAULT_FISCAL_YEAR})")
+    parser.add_argument("--upstream-run", action="append", default=[], metavar="AGENT_TYPE=RUN_ID",
+                         help="Pin an upstream agent's run_id instead of the backend's own "
+                              "most-recent-successful default (or set AGENT5_UPSTREAM_RUN as a "
+                              "comma-separated list of the same agent_type=run_id pairs). Repeatable.")
     parser.add_argument("--poll-interval", type=float, default=5.0, help="Seconds between run status polls")
     parser.add_argument("--poll-timeout", type=float, default=900.0, help="Max seconds to wait for the run")
     parser.add_argument("--output-dir", default=".", help="Where to save export.docx on success")
@@ -366,6 +428,8 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        upstream_overrides = parse_upstream_overrides(args.upstream_run, os.environ.get("AGENT5_UPSTREAM_RUN"))
+
         with httpx.Client(base_url=args.base_url.rstrip("/"), headers=headers, timeout=60.0) as client:
             _print_step("1. Capacity buckets")
             put_json(client, "/agents/strategy/buckets", {"buckets": BUCKETS}, "PUT buckets")
@@ -391,10 +455,20 @@ def main() -> int:
             for item in resp.json():
                 print(f"  - {item['item']}: {item['status']} ({item['consequence']})")
 
-            _print_step("5. Start run")
+            _print_step("5. Upstream run selection")
+            selection = resolve_upstream_selection(client, upstream_overrides)
+            if not selection:
+                print("  (no known upstream agent types, and no --upstream-run/AGENT5_UPSTREAM_RUN given -- "
+                      "nothing will be attached)")
+            for agent_type, (selected_run_id, reason) in selection.items():
+                print(f"  {agent_type}: {selected_run_id or '<none>'} ({reason})")
+
+            _print_step("6. Start run")
             run_payload = {"fiscal_year": args.fiscal_year}
             if args.model:
                 run_payload["model"] = args.model
+            if upstream_overrides:
+                run_payload["upstream_run_overrides"] = upstream_overrides
             resp = _request(client, "POST", "/agents/strategy/runs", json=run_payload)
             _require_ok(resp, "POST runs")
             run = resp.json()
@@ -410,7 +484,7 @@ def main() -> int:
                     "claude-opus-5 by default, per strategy_synthesis/config.py)."
                 )
 
-            _print_step("6. Poll run to completion")
+            _print_step("7. Poll run to completion")
             deadline = time.monotonic() + args.poll_timeout
             status = run["status"]
             while status in ("pending", "running"):
@@ -430,7 +504,7 @@ def main() -> int:
             if status != "succeeded":
                 raise SmokeTestFailure(f"Unexpected terminal status: {status!r}")
 
-            _print_step("7. Download export.docx")
+            _print_step("8. Download export.docx")
             resp = _request(client, "GET", f"/agents/strategy/runs/{run_id}/export.docx")
             _require_ok(resp, "GET export.docx")
             out_path = output_dir / f"agent5_smoke_export_{run_id}.docx"
