@@ -15,14 +15,17 @@ from strategy_synthesis.compute import (
     CompositeScore,
     Dependency,
     DimensionScore,
+    Project,
     ProjectFinancials,
     ProjectScore,
     Scenario,
     check_cross_scenario_prerequisites,
+    classify_projects,
     compute_bucket_utilisation,
     compute_composite_scores,
     compute_financial_metrics,
     compute_scenarios,
+    coverage_gaps,
     find_bottlenecks,
 )
 from tests.fixtures.agent5.strawman import (
@@ -429,3 +432,66 @@ class TestFinancialMetrics:
         assert result.npv is not None
         # net cash flow is 50/yr; payback lands during year 2 (100 / 50 = 2.0)
         assert result.payback_years == pytest.approx(2.0, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# 3.7 Project classification and objective coverage
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyProjects:
+    def test_mandatory_wins_even_with_a_dependency(self):
+        """A mandatory project that also depends on something else is still
+        reported as mandatory -- mandatory is a customer declaration and
+        takes precedence over the conditional lookup."""
+        projects = [Project(project_key="P-01", name="TSO cert", mandatory=True)]
+        dependencies = [Dependency(project_key="P-01", depends_on="P-00")]
+        result = classify_projects(projects, dependencies)
+        assert result["P-01"] == "mandatory"
+
+    def test_conditional_via_dependency(self):
+        projects = [Project(project_key="P-05", name="Low-SWaP variant", mandatory=False)]
+        dependencies = [Dependency(project_key="P-05", depends_on="P-03")]
+        result = classify_projects(projects, dependencies)
+        assert result["P-05"] == "conditional"
+
+    def test_discretionary_when_neither(self):
+        projects = [Project(project_key="P-06", name="Download tooling", mandatory=False)]
+        result = classify_projects(projects, dependencies=[])
+        assert result["P-06"] == "discretionary"
+
+    def test_depends_on_side_of_an_edge_is_not_itself_conditional(self):
+        """Only the dependent project (project_key) is conditional -- the
+        project being depended on (depends_on) isn't made conditional just
+        by being a prerequisite for something else."""
+        projects = [
+            Project(project_key="P-03", name="Memory IC redesign", mandatory=False),
+            Project(project_key="P-05", name="Low-SWaP variant", mandatory=False),
+        ]
+        dependencies = [Dependency(project_key="P-05", depends_on="P-03")]
+        result = classify_projects(projects, dependencies)
+        assert result["P-05"] == "conditional"
+        assert result["P-03"] == "discretionary"
+
+
+class TestCoverageGaps:
+    def test_objective_with_zero_servers_is_a_gap(self):
+        gaps = coverage_gaps(
+            objective_keys=["SO-1", "SO-2", "SO-3"],
+            objectives_served_by_project={"P-01": ["SO-1"], "P-02": ["SO-1", "SO-2"]},
+        )
+        assert gaps == ["SO-3"]
+
+    def test_fully_covered_objectives_produce_no_gaps(self):
+        gaps = coverage_gaps(
+            objective_keys=["SO-1", "SO-2"],
+            objectives_served_by_project={"P-01": ["SO-1"], "P-02": ["SO-2"]},
+        )
+        assert gaps == []
+
+    def test_order_follows_declared_objective_keys(self):
+        gaps = coverage_gaps(
+            objective_keys=["SO-1", "SO-2", "SO-3", "SO-4"],
+            objectives_served_by_project={},
+        )
+        assert gaps == ["SO-1", "SO-2", "SO-3", "SO-4"]

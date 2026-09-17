@@ -572,3 +572,44 @@ def compute_financial_metrics(
             )
         )
     return results
+
+
+# ---------------------------------------------------------------------------
+# 3.7 Project classification and objective coverage
+# ---------------------------------------------------------------------------
+
+
+def classify_projects(projects: list[Project], dependencies: list[Dependency]) -> dict[str, str]:
+    """project_key -> "mandatory" | "conditional" | "discretionary".
+
+    mandatory: Project.mandatory is True -- a customer declaration, never
+    inferred, and never overridden by anything else here.
+    conditional: not mandatory, and appears as a `project_key` in
+    `dependencies` (i.e. it depends on something) -- a lookup against the
+    merged customer+inferred dependency list, not a judgment call.
+    discretionary: neither."""
+
+    dependent_keys = {d.project_key for d in dependencies}
+    classification: dict[str, str] = {}
+    for p in projects:
+        if p.mandatory:
+            classification[p.project_key] = "mandatory"
+        elif p.project_key in dependent_keys:
+            classification[p.project_key] = "conditional"
+        else:
+            classification[p.project_key] = "discretionary"
+    return classification
+
+
+def coverage_gaps(
+    objective_keys: list[str], objectives_served_by_project: dict[str, list[str]]
+) -> list[str]:
+    """Objective keys with zero committed projects citing them, in the
+    order given. Existing purely so this check runs every time regardless
+    of whether a report-writing pass remembers to look -- the same reason
+    `find_bottlenecks` doesn't leave the 115%-behind-51% case to be noticed."""
+
+    served: set[str] = set()
+    for objectives in objectives_served_by_project.values():
+        served.update(objectives)
+    return [key for key in objective_keys if key not in served]
