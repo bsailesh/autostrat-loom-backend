@@ -43,6 +43,22 @@ logger = logging.getLogger(__name__)
 
 TEMPLATE_PATH = pathlib.Path(__file__).parent / "template.docx"
 
+# Cover-page / footer label per agent. No default anywhere this is used --
+# a caller must resolve this from the run's own agent_type and pass it
+# explicitly; a wrong-agent cover page is worse than an export that fails
+# loudly for a not-yet-registered agent_type.
+AGENT_LABELS = {
+    "market-insights": "Market Insights",
+    "strategy-synthesis": "Strategy Synthesis",
+}
+
+
+def agent_label_for(agent_type: str) -> str:
+    try:
+        return AGENT_LABELS[agent_type]
+    except KeyError:
+        raise ValueError(f"No cover-page label registered for agent_type {agent_type!r}") from None
+
 _USABLE_WIDTH_PORTRAIT_IN = 6.5  # 8.5in page - 1in margins each side
 _USABLE_WIDTH_LANDSCAPE_IN = 9.0  # 11in page - 1in margins each side
 
@@ -270,13 +286,13 @@ class ExportBuilder:
 
     # -- cover / TOC --------------------------------------------------
 
-    def add_cover_page(self, *, scope_summary: str, run_date: str) -> None:
+    def add_cover_page(self, *, agent_label: str, scope_summary: str, run_date: str) -> None:
         section = self.doc.sections[0]
         section.different_first_page_header_footer = True
-        self._configure_footer(section, run_date)
+        self._configure_footer(section, agent_label, run_date)
 
         self.doc.add_paragraph("AutoStrat Loom", style="Loom Cover Subtitle")
-        self.doc.add_paragraph("Market Insights", style="Loom Cover Title")
+        self.doc.add_paragraph(agent_label, style="Loom Cover Title")
         if scope_summary:
             self.doc.add_paragraph(scope_summary, style="Loom Cover Subtitle")
         self.doc.add_paragraph(f"Generated {run_date}", style="Loom Cover Subtitle")
@@ -300,7 +316,7 @@ class ExportBuilder:
         _insert_toc_field(p)
         self._page_break()
 
-    def _configure_footer(self, section, run_date: str) -> None:
+    def _configure_footer(self, section, agent_label: str, run_date: str) -> None:
         # different_first_page_header_footer=True means section.first_page_footer
         # covers the cover page (left blank) and section.footer covers every
         # page after it within this section.
@@ -308,7 +324,7 @@ class ExportBuilder:
         p = footer.paragraphs[0]
         p.text = ""
         p.style = self.doc.styles["Loom Footer"]
-        p.add_run("AutoStrat Loom Market Insights  ·  ")
+        p.add_run(f"AutoStrat Loom {agent_label}  ·  ")
         run = p.add_run()
         r = run._r
         begin = OxmlElement("w:fldChar")

@@ -1,44 +1,82 @@
 """
-Strategy Synthesis agent (Agent 5) endpoints -- Part 2 of
-agent5_build_briefing.md: CSV ingest and validation, plus the minimum
-`buckets` config endpoint that ingest and templates both depend on.
+Strategy Synthesis agent (Agent 5) endpoints -- Parts 2 and 5 of
+agent5_build_briefing.md: CSV ingest/validation/templates (Part 2) plus
+runs, the remaining brief config endpoints, readiness, and candidates
+(Part 5).
 
 Mirrors app/routers/market_insights.py's conventions: tenant scoping via
 get_current_tenant + get_db, 404-not-403 via get_or_404/scoped_query
-(app/tenant_scope.py).
-
-Everything else in agent5_build_briefing.md Part 5 -- /config, /objectives,
-/framework, /scenarios, /readiness, /runs, /reports, /export.docx,
-/candidates -- is out of scope for this round.
+(app/tenant_scope.py). Run assembly/execution lives in
+app/strategy_synthesis_service.py, not here -- Agent 5 touches 17
+decision-inputs tables versus Market Insights' one AgentScope, so keeping
+that logic out of the router keeps this file readable.
 """
 import dataclasses
+import io
+import re
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_tenant
 from app.database import get_db
+from app.export.docx_builder import ExportBuilder, agent_label_for
 from app.models import (
+    AgentReport,
+    AgentRun,
     BriefFile,
     CapacityBucket,
     CapacityRow,
+    DiscoveredCandidate,
+    EffortBand,
     PortfolioProject,
+    PrioritizationCriterion,
+    PrioritizationFramework,
     ProductFleetRow,
     ProjectDependency,
     ProjectEffortRow,
     ProjectFinancialsRow,
+    ScenarioRow,
+    ScenarioWeight,
+    StrategicObjective,
+    StrategyConfig,
+    StrategyRule,
     Tenant,
 )
 from app.schemas import (
+    AgentReportOut,
+    AgentReportSummary,
+    AgentRunOut,
     BriefFileOut,
+    CandidatePatchRequest,
     CapacityBucketOut,
     CapacityBucketsUpsertRequest,
+    DiscoveredCandidateOut,
+    EffortBandOut,
+    FrameworkResponse,
+    FrameworkUpsertRequest,
     IngestIssueOut,
     IngestResultOut,
+    ReadinessItemOut,
+    ScenarioOut,
+    ScenariosUpsertRequest,
+    StrategicObjectiveOut,
+    StrategicObjectivesUpsertRequest,
+    StrategyConfigResponse,
+    StrategyConfigUpsertRequest,
+    StrategyRuleOut,
+    StrategyRunRequest,
 )
-from app.tenant_scope import get_or_404, scoped_query  # noqa: F401 -- get_or_404 not used yet, kept for parity
+from app.strategy_synthesis_service import (
+    AGENT_TYPE,
+    AmbiguousFiscalYearError,
+    compute_readiness,
+    default_fiscal_year,
+    execute_run,
+)
+from app.tenant_scope import get_or_404, scoped_query
 
 from strategy_synthesis import ingest
 
@@ -356,3 +394,409 @@ def list_files(
             )
         )
     return out
+
+
+# ---------------------------------------------------------------------------
+# Runs
+# ---------------------------------------------------------------------------
+
+
+@router.post("/runs", response_model=AgentRunOut, status_code=202)
+def start_run(
+    background_tasks: BackgroundTasks,
+    payload: StrategyRunRequest = StrategyRunRequest(),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Kick off a Strategy Synthesis run. Returns at once; the work happens
+    in a background task. Never blocked by an incomplete brief -- see
+    GET /readiness for what's missing and its cost."""
+    if payload.fiscal_year:
+        fiscal_year = payload.fiscal_year
+    else:
+        config = scoped_query(db, StrategyConfig, tenant).first()
+        try:
+            fiscal_year = default_fiscal_year(db, tenant, config)
+        except AmbiguousFiscalYearError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    run = AgentRun(
+        tenant_id=tenant.id,
+        agent_type=AGENT_TYPE,
+        subject=f"Strategy Synthesis — {fiscal_year}",
+        status="pending",
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    background_tasks.add_task(
+        execute_run,
+        run_id=run.id,
+        fiscal_year=fiscal_year,
+        upstream_run_overrides=payload.upstream_run_overrides,
+        model=payload.model,
+    )
+    return run
+
+
+@router.get("/runs", response_model=list[AgentRunOut])
+def list_runs(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return (
+        scoped_query(db, AgentRun, tenant)
+        .filter(AgentRun.agent_type == AGENT_TYPE)
+        .order_by(AgentRun.created_at.desc())
+        .all()
+    )
+
+
+@router.get("/runs/{run_id}", response_model=AgentRunOut)
+def get_run(
+    run_id: str,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return get_or_404(db, AgentRun, tenant, run_id)
+
+
+@router.get("/runs/{run_id}/reports", response_model=list[AgentReportSummary])
+def list_run_reports(
+    run_id: str,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    get_or_404(db, AgentRun, tenant, run_id)  # 404s if the run isn't this tenant's
+    return (
+        scoped_query(db, AgentReport, tenant)
+        .filter(AgentReport.run_id == run_id)
+        .order_by(AgentReport.report_number.asc())
+        .all()
+    )
+
+
+@router.get("/reports/{report_id}", response_model=AgentReportOut)
+def get_report(
+    report_id: str,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return get_or_404(db, AgentReport, tenant, report_id)
+
+
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+_SLUG_STRIP_RE = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _filename_slug(run: AgentRun) -> str:
+    basis = (run.subject or "").split("—")[0].strip()
+    slug = _SLUG_STRIP_RE.sub("_", basis).strip("_")
+    slug = slug[:60].strip("_")
+    return slug or run.id
+
+
+@router.get("/runs/{run_id}/export.docx")
+def export_run_docx(
+    run_id: str,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """The full report pack for a run, rendered to a single .docx on demand
+    from the stored markdown -- identical mechanics to Market Insights'
+    own export endpoint, since it's the same agent_reports table."""
+    run = get_or_404(db, AgentRun, tenant, run_id)  # 404s (not 403) outside this tenant
+
+    report_rows = (
+        scoped_query(db, AgentReport, tenant)
+        .filter(AgentReport.run_id == run.id)
+        .order_by(AgentReport.report_number.asc())
+    )
+    if report_rows.first() is None:
+        raise HTTPException(status_code=404, detail="This run has no reports yet")
+
+    builder = ExportBuilder()
+    builder.add_cover_page(
+        agent_label=agent_label_for(run.agent_type),
+        scope_summary=run.subject or "",
+        run_date=run.created_at.date().isoformat(),
+    )
+    builder.add_toc()
+
+    for row in report_rows.yield_per(1):  # iterate the cursor, never materialize the list
+        builder.add_report(row.content, report_number=row.report_number, title=row.title)
+
+    docx_bytes = builder.to_bytes()
+    filename = f"AutoStrat_Loom_Strategy_Synthesis_{_filename_slug(run)}_{run.created_at.date().isoformat()}.docx"
+
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type=DOCX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Config (effort unit, fiscal year convention, project types, effort bands, rules)
+# ---------------------------------------------------------------------------
+
+
+def _config_response(db: Session, tenant: Tenant) -> StrategyConfigResponse:
+    config = scoped_query(db, StrategyConfig, tenant).first()
+    return StrategyConfigResponse(
+        configured=config is not None,
+        effort_unit=config.effort_unit if config else "weeks",
+        fiscal_year_start_month=config.fiscal_year_start_month if config else 1,
+        fiscal_year_label_format=config.fiscal_year_label_format if config else "FY{yy}",
+        project_types=config.project_types if config else [],
+        effort_bands=scoped_query(db, EffortBand, tenant).all(),
+        rules=scoped_query(db, StrategyRule, tenant).all(),
+    )
+
+
+@router.get("/config", response_model=StrategyConfigResponse)
+def get_config(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return _config_response(db, tenant)
+
+
+@router.put("/config", response_model=StrategyConfigResponse)
+def put_config(
+    payload: StrategyConfigUpsertRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    config = scoped_query(db, StrategyConfig, tenant).first()
+    if config is None:
+        config = StrategyConfig(tenant_id=tenant.id)
+        db.add(config)
+    config.effort_unit = payload.effort_unit
+    config.fiscal_year_start_month = payload.fiscal_year_start_month
+    config.fiscal_year_label_format = payload.fiscal_year_label_format
+    config.project_types = payload.project_types
+
+    scoped_query(db, EffortBand, tenant).delete()
+    for b in payload.effort_bands:
+        db.add(
+            EffortBand(tenant_id=tenant.id, band_name=b.band_name, min_units=b.min_units, max_units=b.max_units)
+        )
+
+    scoped_query(db, StrategyRule, tenant).delete()
+    for r in payload.rules:
+        db.add(StrategyRule(tenant_id=tenant.id, rule_type=r.rule_type, value=r.value, note=r.note))
+
+    db.commit()
+    return _config_response(db, tenant)
+
+
+# ---------------------------------------------------------------------------
+# Objectives
+# ---------------------------------------------------------------------------
+
+
+@router.get("/objectives", response_model=list[StrategicObjectiveOut])
+def get_objectives(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return scoped_query(db, StrategicObjective, tenant).order_by(StrategicObjective.created_at.asc()).all()
+
+
+@router.put("/objectives", response_model=list[StrategicObjectiveOut])
+def put_objectives(
+    payload: StrategicObjectivesUpsertRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    keys = [o.objective_key.strip() for o in payload.objectives]
+    if len(keys) != len(set(keys)):
+        raise HTTPException(status_code=400, detail="objective_key values must be unique.")
+
+    scoped_query(db, StrategicObjective, tenant).delete()
+    rows = []
+    for o in payload.objectives:
+        row = StrategicObjective(
+            tenant_id=tenant.id, objective_key=o.objective_key.strip(), text=o.text,
+            horizon=o.horizon, owner=o.owner, measure=o.measure,
+        )
+        db.add(row)
+        rows.append(row)
+    db.commit()
+    for row in rows:
+        db.refresh(row)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Framework
+# ---------------------------------------------------------------------------
+
+
+def _framework_response(db: Session, tenant: Tenant) -> FrameworkResponse:
+    framework_row = (
+        scoped_query(db, PrioritizationFramework, tenant)
+        .filter(PrioritizationFramework.run_id.is_(None))
+        .order_by(PrioritizationFramework.updated_at.desc())
+        .first()
+    )
+    if framework_row is None:
+        return FrameworkResponse(configured=False, framework="value_vs_effort", criteria=[])
+    criteria = (
+        scoped_query(db, PrioritizationCriterion, tenant)
+        .filter(PrioritizationCriterion.framework_id == framework_row.id)
+        .all()
+    )
+    return FrameworkResponse(configured=True, framework=framework_row.framework, criteria=criteria)
+
+
+@router.get("/framework", response_model=FrameworkResponse)
+def get_framework(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return _framework_response(db, tenant)
+
+
+@router.put("/framework", response_model=FrameworkResponse)
+def put_framework(
+    payload: FrameworkUpsertRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Replaces the tenant's default (run_id IS NULL) framework selection
+    and criteria wholesale. Weights must sum to ~1.0 -- the same check
+    compute.py itself enforces, surfaced here early rather than only at
+    run time."""
+    total_weight = sum(c.weight for c in payload.criteria)
+    if payload.criteria and abs(total_weight - 1.0) > 0.01:
+        raise HTTPException(status_code=400, detail=f"Criterion weights must sum to 1.0, got {total_weight}")
+
+    framework_row = (
+        scoped_query(db, PrioritizationFramework, tenant)
+        .filter(PrioritizationFramework.run_id.is_(None))
+        .first()
+    )
+    if framework_row is None:
+        framework_row = PrioritizationFramework(tenant_id=tenant.id)
+        db.add(framework_row)
+        db.flush()  # need framework_row.id before inserting criteria below
+    framework_row.framework = payload.framework
+
+    scoped_query(db, PrioritizationCriterion, tenant).filter(
+        PrioritizationCriterion.framework_id == framework_row.id
+    ).delete()
+    for c in payload.criteria:
+        db.add(
+            PrioritizationCriterion(
+                tenant_id=tenant.id, framework_id=framework_row.id,
+                criterion=c.criterion, weight=c.weight, source_agent=c.source_agent,
+            )
+        )
+    db.commit()
+    return _framework_response(db, tenant)
+
+
+# ---------------------------------------------------------------------------
+# Scenarios
+# ---------------------------------------------------------------------------
+
+
+def _scenarios_response(db: Session, tenant: Tenant) -> list[ScenarioOut]:
+    rows = scoped_query(db, ScenarioRow, tenant).order_by(ScenarioRow.created_at.asc()).all()
+    out = []
+    for row in rows:
+        weights = scoped_query(db, ScenarioWeight, tenant).filter(ScenarioWeight.scenario_id == row.id).all()
+        out.append(ScenarioOut(id=row.id, name=row.name, emphasis=row.emphasis, weights=weights))
+    return out
+
+
+@router.get("/scenarios", response_model=list[ScenarioOut])
+def get_scenarios(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return _scenarios_response(db, tenant)
+
+
+@router.put("/scenarios", response_model=list[ScenarioOut])
+def put_scenarios(
+    payload: ScenariosUpsertRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Replaces the tenant's scenarios wholesale, 2-6 entries (per
+    agent5_decision_inputs_brief_spec.md Section 8: "Two to six")."""
+    if not (2 <= len(payload.scenarios) <= 6):
+        raise HTTPException(status_code=400, detail="Between 2 and 6 scenarios must be declared.")
+    names = [s.name.strip() for s in payload.scenarios]
+    if len(names) != len(set(names)):
+        raise HTTPException(status_code=400, detail="Scenario names must be unique.")
+
+    existing_ids = [row.id for row in scoped_query(db, ScenarioRow, tenant).all()]
+    if existing_ids:
+        db.query(ScenarioWeight).filter(
+            ScenarioWeight.tenant_id == tenant.id, ScenarioWeight.scenario_id.in_(existing_ids)
+        ).delete(synchronize_session=False)
+    scoped_query(db, ScenarioRow, tenant).delete()
+
+    for s in payload.scenarios:
+        row = ScenarioRow(tenant_id=tenant.id, name=s.name.strip(), emphasis=s.emphasis)
+        db.add(row)
+        db.flush()  # need row.id before inserting its weights below
+        for w in s.weights:
+            db.add(ScenarioWeight(tenant_id=tenant.id, scenario_id=row.id, criterion=w.criterion, weight=w.weight))
+    db.commit()
+    return _scenarios_response(db, tenant)
+
+
+# ---------------------------------------------------------------------------
+# Readiness
+# ---------------------------------------------------------------------------
+
+
+@router.get("/readiness", response_model=list[ReadinessItemOut])
+def get_readiness(
+    fiscal_year: str | None = None,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """What's missing and what it costs -- never a bare 'missing' badge.
+    Never gates POST /runs; that endpoint runs regardless."""
+    return [ReadinessItemOut(**item) for item in compute_readiness(db, tenant, fiscal_year)]
+
+
+# ---------------------------------------------------------------------------
+# Candidates
+# ---------------------------------------------------------------------------
+
+
+_CANDIDATE_STATUSES = {"new", "under_review", "scoped", "dismissed"}
+
+
+@router.patch("/candidates/{key}", response_model=DiscoveredCandidateOut)
+def patch_candidate(
+    key: str,
+    payload: CandidatePatchRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    if payload.status not in _CANDIDATE_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Unknown status: {payload.status!r}")
+
+    row = (
+        scoped_query(db, DiscoveredCandidate, tenant)
+        .filter(DiscoveredCandidate.candidate_key == key)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="DiscoveredCandidate not found")
+
+    row.status = payload.status
+    row.dismissal_reason = payload.dismissal_reason
+    db.commit()
+    db.refresh(row)
+    return row

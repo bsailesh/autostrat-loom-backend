@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_tenant
 from app.database import SessionLocal, get_db
-from app.export.docx_builder import ExportBuilder
+from app.export.docx_builder import ExportBuilder, agent_label_for
 from app.models import AgentReport, AgentRun, AgentScope, Tenant
 from app.schemas import (
     AgentReportOut,
@@ -246,6 +246,7 @@ def export_run_docx(
     builder = ExportBuilder()
     scope = _get_scope(db, tenant)
     builder.add_cover_page(
+        agent_label=agent_label_for(run.agent_type),
         scope_summary=run.subject or (scope.product_line if scope else ""),
         run_date=run.created_at.date().isoformat(),
     )

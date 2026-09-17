@@ -672,6 +672,11 @@ class DiscoveredCandidate(Base):
     problem_addressed: Mapped[str] = mapped_column(Text, default="")
     evidence_summary: Mapped[str] = mapped_column(Text, default="")
     support_classification: Mapped[str] = mapped_column(String, default="")  # FACT | OBSERVATION | INTERPRETATION | FORECAST | UNKNOWN
+    # Serialized Pass1Citation list (agent, report_number, section,
+    # classification, confidence, summary). Not present in Part 1's
+    # original column set -- added in Part 5 once Pass 1's schema
+    # (strategy_synthesis/schemas.py) made clear what a citation is.
+    source_citations: Mapped[list] = mapped_column(JSON, default=list)
     first_seen_run_id: Mapped[str | None] = mapped_column(String, ForeignKey("agent_runs.id"), nullable=True)
     status: Mapped[str] = mapped_column(String, default="new")  # new | under_review | scoped | dismissed
     dismissal_reason: Mapped[str] = mapped_column(Text, default="")
