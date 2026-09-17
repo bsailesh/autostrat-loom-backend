@@ -289,6 +289,10 @@ class StrategicObjectiveOut(BaseModel):
 
 
 class PrioritizationCriterionIn(BaseModel):
+    """Weight is a fraction of 1.0 (e.g. 0.25 for 25%), not a percentage
+    (e.g. 25) -- the `le=1` bound rejects the latter at the endpoint rather
+    than letting it reach compute.py's weights-sum-to-1.0 check. A
+    framework's criteria weights must sum to 1.0; see put_framework."""
     criterion: str
     weight: float = Field(ge=0, le=1)
     source_agent: str = ""
@@ -314,8 +318,11 @@ class FrameworkResponse(BaseModel):
 
 
 class ScenarioWeightIn(BaseModel):
+    """A per-criterion override on top of the framework's declared weight
+    (see ScenarioWeight in app/models.py) -- a fraction of 1.0, same
+    convention as PrioritizationCriterionIn.weight."""
     criterion: str
-    weight: float
+    weight: float = Field(ge=0, le=1)
 
 
 class ScenarioIn(BaseModel):

@@ -75,6 +75,7 @@ from app.strategy_synthesis_service import (
     compute_readiness,
     default_fiscal_year,
     execute_run,
+    load_framework_weights,
 )
 from app.tenant_scope import get_or_404, scoped_query
 
@@ -729,12 +730,33 @@ def put_scenarios(
     db: Session = Depends(get_db),
 ):
     """Replaces the tenant's scenarios wholesale, 2-6 entries (per
-    agent5_decision_inputs_brief_spec.md Section 8: "Two to six")."""
+    agent5_decision_inputs_brief_spec.md Section 8: "Two to six").
+
+    Each scenario's `weights` are per-criterion overrides on top of the
+    framework's declared weights, not a standalone set -- an unmentioned
+    criterion keeps its framework weight (an empty list, e.g. a "Base"
+    scenario, means "use the framework's weights unchanged"). compute.py
+    requires every weight set to sum to 1.0, so that's checked here, against
+    the framework as currently declared, rather than failing deep in a run
+    later (same reasoning as the sum check in put_framework above)."""
     if not (2 <= len(payload.scenarios) <= 6):
         raise HTTPException(status_code=400, detail="Between 2 and 6 scenarios must be declared.")
     names = [s.name.strip() for s in payload.scenarios]
     if len(names) != len(set(names)):
         raise HTTPException(status_code=400, detail="Scenario names must be unique.")
+
+    _, framework_weights = load_framework_weights(db, tenant)
+    for s in payload.scenarios:
+        overrides = {w.criterion: w.weight for w in s.weights}
+        merged_total = sum({**framework_weights, **overrides}.values())
+        if abs(merged_total - 1.0) > 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Scenario {s.name!r}: weights (framework weights with this scenario's "
+                    f"overrides applied) must sum to 1.0, got {merged_total}"
+                ),
+            )
 
     existing_ids = [row.id for row in scoped_query(db, ScenarioRow, tenant).all()]
     if existing_ids:

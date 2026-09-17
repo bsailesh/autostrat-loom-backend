@@ -22,6 +22,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.main import app
 from app.database import Base, get_db
+from app.models import Tenant
 import app.strategy_synthesis_service as strategy_synthesis_service
 from strategy_synthesis.agent import AgentRunResult, Report, StrategySynthesisAgent
 from strategy_synthesis.schemas import Pass1Candidate, Pass1Output
@@ -255,18 +256,100 @@ def test_framework_round_trip():
 
 def test_scenarios_round_trip():
     tenant = create_tenant("Scenarios Co")
+    client.put(
+        "/agents/strategy/framework",
+        json={"framework": "weighted_scoring", "criteria": [
+            {"criterion": "customer", "weight": 0.5}, {"criterion": "risk", "weight": 0.5},
+        ]},
+        headers=auth_headers(tenant["api_key"]),
+    )
+    # Each scenario's weights override the framework's per criterion and must
+    # still sum to 1.0 once merged with it -- both criteria are overridden
+    # here so the merge is just the override itself.
     payload = {
         "scenarios": [
-            {"name": "Growth", "weights": [{"criterion": "customer", "weight": 0.8}]},
-            {"name": "Sustainment", "weights": [{"criterion": "risk", "weight": 0.7}]},
+            {"name": "Growth", "weights": [{"criterion": "customer", "weight": 0.8}, {"criterion": "risk", "weight": 0.2}]},
+            {"name": "Sustainment", "weights": [{"criterion": "risk", "weight": 0.7}, {"criterion": "customer", "weight": 0.3}]},
         ]
     }
     resp = client.put("/agents/strategy/scenarios", json=payload, headers=auth_headers(tenant["api_key"]))
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.text
     result = client.get("/agents/strategy/scenarios", headers=auth_headers(tenant["api_key"])).json()
     assert {s["name"] for s in result} == {"Growth", "Sustainment"}
     growth = next(s for s in result if s["name"] == "Growth")
     assert growth["weights"][0]["criterion"] == "customer"
+
+
+def test_scenarios_reject_weights_that_do_not_sum_to_one_with_framework():
+    tenant = create_tenant("Scenarios Bad Co")
+    client.put(
+        "/agents/strategy/framework",
+        json={"framework": "weighted_scoring", "criteria": [
+            {"criterion": "customer", "weight": 0.5}, {"criterion": "risk", "weight": 0.5},
+        ]},
+        headers=auth_headers(tenant["api_key"]),
+    )
+    resp = client.put(
+        "/agents/strategy/scenarios",
+        json={"scenarios": [
+            {"name": "Growth", "weights": [{"criterion": "customer", "weight": 0.8}]},
+            {"name": "Base", "weights": []},
+        ]},
+        headers=auth_headers(tenant["api_key"]),
+    )
+    assert resp.status_code == 400
+    assert "Growth" in resp.text
+
+
+def test_framework_weights_reach_assembled_brief():
+    """Regression test for a production incident: a run failed with
+    "criterion weights must sum to 1.0, got 0" even though PUT /framework
+    had succeeded. Root cause was that assemble_brief passed a scenario's
+    per-criterion weight overrides straight to compute.py as if they were a
+    complete weight set, instead of merging them onto the framework's
+    declared weights -- so a "Base" scenario declared with no overrides
+    (weights: [], meaning "use the framework's weights unchanged") produced
+    an empty weight set instead of inheriting the framework's. This
+    round-trips PUT framework -> PUT scenarios -> assemble_brief and checks
+    the weights that would actually reach compute.py."""
+    tenant = create_tenant("Weights Round Trip Co")
+    api_headers = auth_headers(tenant["api_key"])
+    framework_payload = {
+        "framework": "weighted_scoring",
+        "criteria": [
+            {"criterion": "customer_value", "weight": 0.6},
+            {"criterion": "effort_inverse", "weight": 0.4},
+        ],
+    }
+    resp = client.put("/agents/strategy/framework", json=framework_payload, headers=api_headers)
+    assert resp.status_code == 200, resp.text
+
+    resp = client.put(
+        "/agents/strategy/scenarios",
+        json={"scenarios": [
+            {"name": "Base", "emphasis": "Weights as declared in the framework", "weights": []},
+            {"name": "Growth", "weights": [{"criterion": "customer_value", "weight": 0.9},
+                                            {"criterion": "effort_inverse", "weight": 0.1}]},
+        ]},
+        headers=api_headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    db = TestingSessionLocal()
+    try:
+        tenant_row = db.query(Tenant).filter(Tenant.id == tenant["id"]).first()
+        brief = strategy_synthesis_service.assemble_brief(db, tenant_row, fiscal_year="FY27")
+    finally:
+        db.close()
+
+    assert brief.weights == {"customer_value": 0.6, "effort_inverse": 0.4}
+    scenarios_by_name = {s.name: s.weights for s in brief.scenarios}
+    # The regression case: an empty override list inherits the framework's
+    # weights rather than producing an empty (sum-to-zero) weight set.
+    assert scenarios_by_name["Base"] == {"customer_value": 0.6, "effort_inverse": 0.4}
+    assert scenarios_by_name["Growth"] == {"customer_value": 0.9, "effort_inverse": 0.1}
+    for weights in scenarios_by_name.values():
+        assert abs(sum(weights.values()) - 1.0) < 0.01
 
 
 def test_scenarios_reject_fewer_than_two():

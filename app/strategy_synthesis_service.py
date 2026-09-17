@@ -231,6 +231,31 @@ def load_upstream_text(
 # Brief assembly
 # ---------------------------------------------------------------------------
 
+# "Default when unselected: value vs effort" (agent5_decision_inputs_brief_spec.md
+# Section 7). compute.py has no separate RICE/WSJF/Kano algorithm -- every
+# framework reduces to criteria+weights, so this default just supplies a
+# plausible pair rather than leaving weights empty.
+DEFAULT_FRAMEWORK_NAME = "value_vs_effort"
+DEFAULT_FRAMEWORK_WEIGHTS = {"value": 0.5, "effort": 0.5}
+
+
+def load_framework_weights(db: Session, tenant: Tenant) -> tuple[str, dict[str, float]]:
+    """The tenant's current default (run_id IS NULL) framework name and its
+    declared criterion weights, as fractions summing to 1.0 -- or the
+    value-vs-effort default when nothing has been configured yet."""
+    framework_row = (
+        scoped_query(db, PrioritizationFramework, tenant)
+        .filter(PrioritizationFramework.run_id.is_(None))
+        .order_by(PrioritizationFramework.updated_at.desc())
+        .first()
+    )
+    if framework_row is None:
+        return DEFAULT_FRAMEWORK_NAME, dict(DEFAULT_FRAMEWORK_WEIGHTS)
+    criteria = scoped_query(db, PrioritizationCriterion, tenant).filter(
+        PrioritizationCriterion.framework_id == framework_row.id
+    ).all()
+    return framework_row.framework, {c.criterion: c.weight for c in criteria}
+
 
 def assemble_brief(db: Session, tenant: Tenant, fiscal_year: str) -> DecisionBrief:
     config = scoped_query(db, StrategyConfig, tenant).first()
@@ -307,31 +332,20 @@ def assemble_brief(db: Session, tenant: Tenant, fiscal_year: str) -> DecisionBri
         for c in scoped_query(db, DiscoveredCandidate, tenant).all()
     ]
 
-    framework_row = (
-        scoped_query(db, PrioritizationFramework, tenant)
-        .filter(PrioritizationFramework.run_id.is_(None))
-        .order_by(PrioritizationFramework.updated_at.desc())
-        .first()
-    )
-    if framework_row is not None:
-        criteria = scoped_query(db, PrioritizationCriterion, tenant).filter(
-            PrioritizationCriterion.framework_id == framework_row.id
-        ).all()
-        framework_name = framework_row.framework
-        weights = {c.criterion: c.weight for c in criteria}
-    else:
-        # "Default when unselected: value vs effort" (agent5_decision_inputs_brief_spec.md
-        # Section 7). compute.py has no separate RICE/WSJF/Kano algorithm --
-        # every framework reduces to criteria+weights, so this default just
-        # supplies a plausible pair rather than leaving weights empty.
-        framework_name = "value_vs_effort"
-        weights = {"value": 0.5, "effort": 0.5}
+    framework_name, weights = load_framework_weights(db, tenant)
 
+    # ScenarioWeight rows are per-criterion overrides (see its docstring in
+    # app/models.py), not a standalone weight set -- a scenario that leaves a
+    # criterion unmentioned inherits the framework's declared weight for it.
+    # A scenario named "Base" with no rows at all (weights: []) means
+    # "use the framework's weights unchanged", which this merge gives for
+    # free: base weights overridden by an empty dict is just the base weights.
     scenario_rows = scoped_query(db, ScenarioRow, tenant).all()
     scenarios = []
     for s in scenario_rows:
         weight_rows = scoped_query(db, ScenarioWeight, tenant).filter(ScenarioWeight.scenario_id == s.id).all()
-        scenarios.append(compute.Scenario(name=s.name, weights={w.criterion: w.weight for w in weight_rows}))
+        overrides = {w.criterion: w.weight for w in weight_rows}
+        scenarios.append(compute.Scenario(name=s.name, weights={**weights, **overrides}))
 
     rules = [r.value or r.rule_type for r in scoped_query(db, StrategyRule, tenant).all()]
 
