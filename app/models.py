@@ -694,7 +694,11 @@ class BriefFile(Base):
     as_of: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     uploaded_by: Mapped[str] = mapped_column(String, default="")
     row_count: Mapped[int] = mapped_column(default=0)
-    validation_status: Mapped[str] = mapped_column(String, default="pending")  # pending | valid | invalid
+    validation_status: Mapped[str] = mapped_column(String, default="pending")  # pending | valid | valid_with_warnings | invalid
+    # Serialized IngestIssue list (severity, row, field, message) from the
+    # last upload attempt, so GET /agents/strategy/files can show why it
+    # failed (or what it warned about) without re-parsing the file.
+    issues: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

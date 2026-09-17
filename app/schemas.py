@@ -147,6 +147,62 @@ class AgentReportOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ---------- Strategy Synthesis agent ----------
+
+class CapacityBucketIn(BaseModel):
+    bucket_key: str = Field(description="Used verbatim as a CSV column header -- letters/digits/underscore, starts with a letter")
+    bucket_name: str
+    contractable: str = Field(default="no", description="yes | partial | no")
+    note: str = ""
+
+
+class CapacityBucketsUpsertRequest(BaseModel):
+    """PUT body: the complete set of buckets for this tenant, 2-8 entries.
+    Replaces whatever was previously declared."""
+    buckets: list[CapacityBucketIn]
+
+
+class CapacityBucketOut(BaseModel):
+    id: str
+    bucket_key: str
+    bucket_name: str
+    contractable: str
+    note: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class IngestIssueOut(BaseModel):
+    severity: str  # "error" | "warning"
+    row: int | None
+    field: str | None
+    message: str
+
+
+class IngestResultOut(BaseModel):
+    file_type: str
+    row_count: int
+    stored: bool
+    validation_status: str
+    errors: list[IngestIssueOut]
+    warnings: list[IngestIssueOut]
+
+
+class BriefFileOut(BaseModel):
+    id: str
+    file_type: str
+    filename: str
+    as_of: datetime | None
+    uploaded_by: str
+    row_count: int
+    validation_status: str
+    issues: list[IngestIssueOut]
+    is_stale: bool
+    created_at: datetime
+
+
 # ---------- Contact form ----------
 
 class ContactRequest(BaseModel):
