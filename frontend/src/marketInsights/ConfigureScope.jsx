@@ -21,7 +21,7 @@ export default function ConfigureScope() {
     let cancelled = false;
     (async () => {
       try {
-        const scope = await api.getScope();
+        const scope = await api.marketInsights.getScope();
         if (cancelled) return;
         if (scope?.configured) {
           setExisting(true);
@@ -49,7 +49,7 @@ export default function ConfigureScope() {
     setSaving(true);
     setError("");
     try {
-      await api.putScope({
+      await api.marketInsights.putScope({
         product_line: productLine.trim(),
         competitors: competitors.trim(),
         geography: geography.trim(),

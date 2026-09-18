@@ -62,10 +62,39 @@ async function apiFetch(path, options = {}) {
   return resp.json();
 }
 
+// Shared by every agent's docx export: not JSON, so it doesn't go through
+// apiFetch. Returns {blob, filename} for the caller to trigger a download.
+async function fetchDocx(path) {
+  const session = getSession();
+  const resp = await fetch(API_BASE + path, {
+    headers: session ? { Authorization: "Bearer " + session.token } : {},
+  });
+  if (resp.status === 401) {
+    clearSession();
+    window.dispatchEvent(new Event("loom:unauthorized"));
+    throw new ApiError("Your session has expired — please sign in again.", 401);
+  }
+  if (!resp.ok) {
+    let detail = resp.statusText;
+    try {
+      const body = await resp.json();
+      if (body && body.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    } catch {
+      /* keep statusText */
+    }
+    throw new ApiError(detail, resp.status);
+  }
+  const disposition = resp.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const filename = match ? match[1] : "export.docx";
+  const blob = await resp.blob();
+  return { blob, filename };
+}
+
 export const api = {
   base: API_BASE,
 
-  // --- auth ---
+  // --- auth (shared across all agents) ---
   signup: (email, password, tenant_name) =>
     apiFetch("/auth/signup", { method: "POST", body: JSON.stringify({ email, password, tenant_name: tenant_name || "" }) }),
   login: (email, password) =>
@@ -73,47 +102,22 @@ export const api = {
   me: () => apiFetch("/auth/me"),
   logout: () => apiFetch("/auth/logout", { method: "POST" }),
 
-  // --- market insights: scope ---
-  getScope: () => apiFetch("/agents/market-insights/scope"),
-  putScope: ({ product_line, competitors, geography }) =>
-    apiFetch("/agents/market-insights/scope", {
-      method: "PUT",
-      body: JSON.stringify({ product_line, competitors: competitors || "", geography: geography || "" }),
-    }),
+  // Each agent's own namespace -- kept separate so one agent's endpoints
+  // can change without touching another's call sites (see
+  // frontend/src/reportWorkspace/ for what's actually shared).
+  marketInsights: {
+    getScope: () => apiFetch("/agents/market-insights/scope"),
+    putScope: ({ product_line, competitors, geography }) =>
+      apiFetch("/agents/market-insights/scope", {
+        method: "PUT",
+        body: JSON.stringify({ product_line, competitors: competitors || "", geography: geography || "" }),
+      }),
 
-  // --- market insights: runs & reports ---
-  startRun: () => apiFetch("/agents/market-insights/run", { method: "POST", body: "{}" }),
-  listRuns: () => apiFetch("/agents/market-insights/runs"),
-  getRun: (runId) => apiFetch(`/agents/market-insights/runs/${runId}`),
-  listRunReports: (runId) => apiFetch(`/agents/market-insights/runs/${runId}/reports`),
-  getReport: (reportId) => apiFetch(`/agents/market-insights/reports/${reportId}`),
-
-  // Full report pack as .docx -- not JSON, so this doesn't go through
-  // apiFetch. Returns {blob, filename} for the caller to trigger a download.
-  exportRunDocx: async (runId) => {
-    const session = getSession();
-    const resp = await fetch(API_BASE + `/agents/market-insights/runs/${runId}/export.docx`, {
-      headers: session ? { Authorization: "Bearer " + session.token } : {},
-    });
-    if (resp.status === 401) {
-      clearSession();
-      window.dispatchEvent(new Event("loom:unauthorized"));
-      throw new ApiError("Your session has expired — please sign in again.", 401);
-    }
-    if (!resp.ok) {
-      let detail = resp.statusText;
-      try {
-        const body = await resp.json();
-        if (body && body.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
-      } catch {
-        /* keep statusText */
-      }
-      throw new ApiError(detail, resp.status);
-    }
-    const disposition = resp.headers.get("Content-Disposition") || "";
-    const match = disposition.match(/filename="?([^";]+)"?/);
-    const filename = match ? match[1] : `${runId}.docx`;
-    const blob = await resp.blob();
-    return { blob, filename };
+    startRun: () => apiFetch("/agents/market-insights/run", { method: "POST", body: "{}" }),
+    listRuns: () => apiFetch("/agents/market-insights/runs"),
+    getRun: (runId) => apiFetch(`/agents/market-insights/runs/${runId}`),
+    listRunReports: (runId) => apiFetch(`/agents/market-insights/runs/${runId}/reports`),
+    getReport: (reportId) => apiFetch(`/agents/market-insights/reports/${reportId}`),
+    exportRunDocx: (runId) => fetchDocx(`/agents/market-insights/runs/${runId}/export.docx`),
   },
 };

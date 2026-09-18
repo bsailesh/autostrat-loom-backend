@@ -15,7 +15,7 @@ export function useMarketInsightsStatus({ poll = true } = {}) {
 
   const load = useCallback(async () => {
     try {
-      const [s, r] = await Promise.all([api.getScope(), api.listRuns()]);
+      const [s, r] = await Promise.all([api.marketInsights.getScope(), api.marketInsights.listRuns()]);
       setScope(s);
       setRuns(Array.isArray(r) ? r : []);
       setError("");
@@ -37,7 +37,7 @@ export function useMarketInsightsStatus({ poll = true } = {}) {
     if (!poll || !active) return undefined;
     timer.current = setInterval(async () => {
       try {
-        const r = await api.listRuns();
+        const r = await api.marketInsights.listRuns();
         setRuns(Array.isArray(r) ? r : []);
       } catch {
         /* keep last-known state; next tick retries */
@@ -49,7 +49,7 @@ export function useMarketInsightsStatus({ poll = true } = {}) {
   const configured = !!(scope && scope.configured && (scope.product_line || "").trim());
 
   const startRun = useCallback(async () => {
-    const run = await api.startRun();
+    const run = await api.marketInsights.startRun();
     setRuns((prev) => [run, ...prev.filter((x) => x.id !== run.id)]);
     return run;
   }, []);

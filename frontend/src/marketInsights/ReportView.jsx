@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { theme } from "../theme.js";
 import { opensWithGoverningInsight } from "./reportMeta.js";
-import { extractGoverningInsight, extractKeyInsights, liftStrap } from "./insights.js";
-import { GoverningInsightBox, KeyInsightsBox } from "./InsightBoxes.jsx";
-import { ReportMarkdown } from "./markdown.jsx";
+import { extractGoverningInsight, extractKeyInsights, liftStrap } from "../reportWorkspace/insights.js";
+import { GoverningInsightBox, KeyInsightsBox } from "../reportWorkspace/InsightBoxes.jsx";
+import { ReportMarkdown } from "../reportWorkspace/markdown.jsx";
 
 export default function ReportView({ report }) {
   const parsed = useMemo(() => {

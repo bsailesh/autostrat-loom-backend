@@ -16,7 +16,7 @@ export default function MarketInsightsEntry() {
     let cancelled = false;
     (async () => {
       try {
-        const [scope, runs] = await Promise.all([api.getScope(), api.listRuns()]);
+        const [scope, runs] = await Promise.all([api.marketInsights.getScope(), api.marketInsights.listRuns()]);
         if (cancelled) return;
         if (!scope?.configured || !(scope.product_line || "").trim()) {
           setDest("/agents/market-insights/scope");
