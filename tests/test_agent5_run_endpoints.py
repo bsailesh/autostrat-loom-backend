@@ -128,6 +128,25 @@ def test_post_runs_persists_candidates_without_resurrecting_dismissed_ones():
     assert resp.status_code == 200
 
 
+def test_list_candidates_reflects_live_status_not_frozen_report_text():
+    tenant = create_tenant("List Candidates Co")
+    headers = auth_headers(tenant["api_key"])
+    with patch.object(StrategySynthesisAgent, "run", return_value=_fake_result(
+        candidates=[Pass1Candidate(key="C-04", name="Route to market", origin="x", problem="p",
+                                    evidence_summary="e", support_classification="evidence-supported",
+                                    evidence_strength_rank=1)]
+    )):
+        client.post("/agents/strategy/runs", json={"fiscal_year": "FY27"}, headers=headers)
+
+    listed = client.get("/agents/strategy/candidates", headers=headers).json()
+    assert [c["candidate_key"] for c in listed] == ["C-04"]
+    assert listed[0]["status"] == "new"
+
+    client.patch("/agents/strategy/candidates/C-04", json={"status": "under_review"}, headers=headers)
+    listed_again = client.get("/agents/strategy/candidates", headers=headers).json()
+    assert listed_again[0]["status"] == "under_review"
+
+
 def test_scope_candidate_creates_roadmap_project_and_marks_scoped():
     tenant = create_tenant("Scope Candidate Co")
     headers = auth_headers(tenant["api_key"])

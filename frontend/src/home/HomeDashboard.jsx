@@ -15,6 +15,7 @@ import { Badge, Button, Card, Spinner } from "../components/atoms.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { useMarketInsightsStatus } from "../marketInsights/useMarketInsights.js";
+import { useStrategySynthesisStatus } from "../strategySynthesis/useStrategySynthesis.js";
 import { relativeTime } from "../lib/time.js";
 
 // Only Market Insights has a backend. The rest render in the reference's
@@ -28,6 +29,7 @@ const PLACEHOLDER_AGENTS = [
 export default function HomeDashboard() {
   const { session } = useAuth();
   const mi = useMarketInsightsStatus();
+  const strategy = useStrategySynthesisStatus();
 
   return (
     <>
@@ -48,7 +50,7 @@ export default function HomeDashboard() {
           ))}
         </div>
 
-        <StrategySynthesisCard />
+        <StrategySynthesisCard strategy={strategy} />
       </div>
     </>
   );
@@ -192,23 +194,45 @@ function NotSubscribedCard({ def }) {
   );
 }
 
-function StrategySynthesisCard() {
+function StrategySynthesisCard({ strategy }) {
+  const navigate = useNavigate();
+  const { latestRun, active, loading, error } = strategy;
+
+  const goWorkspace = () => navigate("/agents/strategy-synthesis");
+  const goInputs = () => navigate("/agents/strategy-synthesis/inputs");
+
+  let badge;
+  if (loading) badge = <Spinner size={12} />;
+  else if (active)
+    badge = (
+      <Badge tone="accent">
+        <Spinner size={10} /> Running
+      </Badge>
+    );
+  else if (latestRun?.status === "failed") badge = <Badge tone="danger">Last run failed</Badge>;
+  else badge = <Badge tone="success">Active</Badge>;
+
+  async function onRun(e) {
+    e.stopPropagation();
+    try {
+      const run = await strategy.startRun();
+      navigate(`/agents/strategy-synthesis/runs/${run.id}`);
+    } catch (err) {
+      alert(err.message || "Couldn't start the run.");
+    }
+  }
+
   return (
-    <Card accent style={{ maxWidth: 720, marginTop: 14 }}>
+    <Card accent onClick={goWorkspace} style={{ maxWidth: 720, marginTop: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <Sparkles size={18} color={theme.orange} />
-        <Badge tone="warning">Partial inputs</Badge>
+        {badge}
       </div>
       <p style={{ fontWeight: 600, fontSize: 15, margin: "0 0 4px" }}>Strategy synthesis and decision</p>
       <p style={{ fontSize: 13, color: theme.textSecondary, margin: "0 0 10px" }}>
-        Synthesizes all four agents into enterprise imperatives
+        Ranks the committed portfolio, checks capacity and scenarios, and writes a decision brief. Run is always
+        available — the brief states what's missing rather than blocking on it.
       </p>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <Badge tone="success">Market insights</Badge>
-        <Badge tone="muted">Voice of customer</Badge>
-        <Badge tone="muted">Tech &amp; regulation</Badge>
-        <Badge tone="muted">Product sustainment</Badge>
-      </div>
       <div
         style={{
           display: "flex",
@@ -217,12 +241,39 @@ function StrategySynthesisCard() {
           borderTop: `1px solid ${theme.border}`,
           marginTop: 12,
           paddingTop: 10,
+          gap: 8,
         }}
       >
-        <span style={{ fontSize: 12, color: theme.textMuted }}>Synthesizing from 1 of 4 inputs</span>
-        <Button small icon={Play} disabled title="No backend yet">
-          Run
-        </Button>
+        <div style={{ minWidth: 0 }}>
+          {error ? (
+            <p style={{ fontSize: 12, color: theme.danger, margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+              <AlertTriangle size={12} /> {error}
+            </p>
+          ) : active ? (
+            <p style={{ fontSize: 12, color: theme.textMuted, margin: 0 }}>Run in progress…</p>
+          ) : latestRun ? (
+            <p style={{ fontSize: 12, color: theme.textMuted, margin: 0 }}>
+              {latestRun.status === "failed" ? "Last run failed" : "Last run"} · {relativeTime(latestRun.created_at)}
+            </p>
+          ) : (
+            <p style={{ fontSize: 12, color: theme.textMuted, margin: 0 }}>No runs yet</p>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <button
+            title="Decision inputs"
+            onClick={(e) => {
+              e.stopPropagation();
+              goInputs();
+            }}
+            style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+          >
+            <SettingsIcon size={15} color={theme.textMuted} />
+          </button>
+          <Button small icon={active ? undefined : Play} disabled={active} onClick={onRun}>
+            {active ? "Running…" : "Run"}
+          </Button>
+        </div>
       </div>
     </Card>
   );

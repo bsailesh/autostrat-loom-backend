@@ -120,4 +120,76 @@ export const api = {
     getReport: (reportId) => apiFetch(`/agents/market-insights/reports/${reportId}`),
     exportRunDocx: (runId) => fetchDocx(`/agents/market-insights/runs/${runId}/export.docx`),
   },
+
+  strategySynthesis: {
+    startRun: (payload) => apiFetch("/agents/strategy/runs", { method: "POST", body: JSON.stringify(payload || {}) }),
+    listRuns: () => apiFetch("/agents/strategy/runs"),
+    getRun: (runId) => apiFetch(`/agents/strategy/runs/${runId}`),
+    listRunReports: (runId) => apiFetch(`/agents/strategy/runs/${runId}/reports`),
+    getReport: (reportId) => apiFetch(`/agents/strategy/reports/${reportId}`),
+    exportRunDocx: (runId) => fetchDocx(`/agents/strategy/runs/${runId}/export.docx`),
+    getReadiness: () => apiFetch("/agents/strategy/readiness"),
+
+    getBuckets: () => apiFetch("/agents/strategy/buckets"),
+    putBuckets: (buckets) => apiFetch("/agents/strategy/buckets", { method: "PUT", body: JSON.stringify({ buckets }) }),
+
+    getConfig: () => apiFetch("/agents/strategy/config"),
+    putConfig: (config) => apiFetch("/agents/strategy/config", { method: "PUT", body: JSON.stringify(config) }),
+
+    getObjectives: () => apiFetch("/agents/strategy/objectives"),
+    putObjectives: (objectives) => apiFetch("/agents/strategy/objectives", { method: "PUT", body: JSON.stringify({ objectives }) }),
+
+    getProposals: () => apiFetch("/agents/strategy/proposals"),
+    putProposals: (proposals) => apiFetch("/agents/strategy/proposals", { method: "PUT", body: JSON.stringify({ proposals }) }),
+
+    getFramework: () => apiFetch("/agents/strategy/framework"),
+    putFramework: (framework) => apiFetch("/agents/strategy/framework", { method: "PUT", body: JSON.stringify(framework) }),
+
+    getScenarios: () => apiFetch("/agents/strategy/scenarios"),
+    putScenarios: (scenarios) => apiFetch("/agents/strategy/scenarios", { method: "PUT", body: JSON.stringify({ scenarios }) }),
+
+    listFiles: () => apiFetch("/agents/strategy/files"),
+    getTemplate: async (fileType) => {
+      const session = getSession();
+      const resp = await fetch(API_BASE + `/agents/strategy/templates/${fileType}`, {
+        headers: session ? { Authorization: "Bearer " + session.token } : {},
+      });
+      if (!resp.ok) throw new ApiError(resp.statusText, resp.status);
+      const disposition = resp.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      const filename = match ? match[1] : `${fileType}_template.csv`;
+      const blob = await resp.blob();
+      return { blob, filename };
+    },
+    uploadFile: (fileType, file, { asOf, uploadedBy } = {}) => {
+      const session = getSession();
+      const form = new FormData();
+      form.append("file", file);
+      if (asOf) form.append("as_of", asOf);
+      if (uploadedBy) form.append("uploaded_by", uploadedBy);
+      return fetch(API_BASE + `/agents/strategy/files/${fileType}`, {
+        method: "POST",
+        headers: session ? { Authorization: "Bearer " + session.token } : {},
+        body: form,
+      }).then(async (resp) => {
+        if (resp.status === 401) {
+          clearSession();
+          window.dispatchEvent(new Event("loom:unauthorized"));
+          throw new ApiError("Your session has expired — please sign in again.", 401);
+        }
+        const body = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          const detail = body && body.detail ? (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail)) : resp.statusText;
+          throw new ApiError(detail, resp.status);
+        }
+        return body;
+      });
+    },
+
+    listCandidates: () => apiFetch("/agents/strategy/candidates"),
+    patchCandidate: (key, payload) =>
+      apiFetch(`/agents/strategy/candidates/${key}`, { method: "PATCH", body: JSON.stringify(payload) }),
+    scopeCandidate: (key, payload) =>
+      apiFetch(`/agents/strategy/candidates/${key}/scope`, { method: "POST", body: JSON.stringify(payload) }),
+  },
 };

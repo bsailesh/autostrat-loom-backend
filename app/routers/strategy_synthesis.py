@@ -853,6 +853,17 @@ def get_readiness(
 _CANDIDATE_STATUSES = {"new", "under_review", "scoped", "dismissed"}
 
 
+@router.get("/candidates", response_model=list[DiscoveredCandidateOut])
+def list_candidates(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Live candidate state -- Report 7's own text is frozen at run time, so
+    the "what to scope next" UI reads from here, not from parsed report
+    prose, to reflect actions taken since that run."""
+    return scoped_query(db, DiscoveredCandidate, tenant).order_by(DiscoveredCandidate.created_at.asc()).all()
+
+
 @router.patch("/candidates/{key}", response_model=DiscoveredCandidateOut)
 def patch_candidate(
     key: str,
