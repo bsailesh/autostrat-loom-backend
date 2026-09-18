@@ -12,6 +12,8 @@ import Workspace from "./marketInsights/Workspace.jsx";
 import MarketInsightsEntry from "./marketInsights/MarketInsightsEntry.jsx";
 import StrategySynthesisEntry from "./strategySynthesis/StrategySynthesisEntry.jsx";
 import StrategySynthesisWorkspace from "./strategySynthesis/Workspace.jsx";
+import DecisionInputsScreen from "./strategySynthesis/decisionInputs/DecisionInputsScreen.jsx";
+import BucketsSubScreen from "./strategySynthesis/decisionInputs/BucketsSubScreen.jsx";
 import { Settings as SettingsIcon } from "lucide-react";
 
 function FullPageLoader() {
@@ -59,6 +61,8 @@ export default function App() {
         <Route path="/agents/market-insights/runs/:runId/reports/:reportId" element={<Workspace />} />
 
         <Route path="/agents/strategy-synthesis" element={<StrategySynthesisEntry />} />
+        <Route path="/agents/strategy-synthesis/inputs" element={<DecisionInputsScreen />} />
+        <Route path="/agents/strategy-synthesis/inputs/buckets" element={<BucketsSubScreen />} />
         <Route path="/agents/strategy-synthesis/workspace" element={<StrategySynthesisWorkspace />} />
         <Route path="/agents/strategy-synthesis/runs/:runId" element={<StrategySynthesisWorkspace />} />
         <Route path="/agents/strategy-synthesis/runs/:runId/reports/:reportId" element={<StrategySynthesisWorkspace />} />
