@@ -21,3 +21,6 @@ output/
 export_preview*.docx
 export_preview*.pdf
 ~$*.docx
+
+# Agent 5 smoke test output
+agent5_smoke_export_*.docx
