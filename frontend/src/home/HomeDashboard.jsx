@@ -16,6 +16,7 @@ import { PageHeader } from "../components/PageHeader.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { useMarketInsightsStatus } from "../marketInsights/useMarketInsights.js";
 import { useStrategySynthesisStatus } from "../strategySynthesis/useStrategySynthesis.js";
+import { useRunWithFiscalYear, CANCELLED_MESSAGE } from "../strategySynthesis/useRunWithFiscalYear.jsx";
 import { relativeTime } from "../lib/time.js";
 
 // Only Market Insights has a backend. The rest render in the reference's
@@ -197,6 +198,7 @@ function NotSubscribedCard({ def }) {
 function StrategySynthesisCard({ strategy }) {
   const navigate = useNavigate();
   const { latestRun, active, loading, error } = strategy;
+  const { run: startRun, modal: fiscalYearModal } = useRunWithFiscalYear(strategy.startRun);
 
   const goWorkspace = () => navigate("/agents/strategy-synthesis");
   const goInputs = () => navigate("/agents/strategy-synthesis/inputs");
@@ -215,15 +217,17 @@ function StrategySynthesisCard({ strategy }) {
   async function onRun(e) {
     e.stopPropagation();
     try {
-      const run = await strategy.startRun();
+      const run = await startRun();
       navigate(`/agents/strategy-synthesis/runs/${run.id}`);
     } catch (err) {
+      if (err.message === CANCELLED_MESSAGE) return; // user closed the fiscal-year picker -- not an error
       alert(err.message || "Couldn't start the run.");
     }
   }
 
   return (
     <Card accent onClick={goWorkspace} style={{ maxWidth: 720, marginTop: 14 }}>
+      {fiscalYearModal}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <Sparkles size={18} color={theme.orange} />
         {badge}

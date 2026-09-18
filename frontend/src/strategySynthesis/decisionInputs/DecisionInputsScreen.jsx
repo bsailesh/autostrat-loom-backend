@@ -26,14 +26,15 @@ export default function DecisionInputsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [readiness, files, buckets, config, proposals] = await Promise.all([
+      const [readiness, files, buckets, config, proposals, fiscalYears] = await Promise.all([
         api.strategySynthesis.getReadiness(),
         api.strategySynthesis.listFiles(),
         api.strategySynthesis.getBuckets(),
         api.strategySynthesis.getConfig(),
         api.strategySynthesis.getProposals(),
+        api.strategySynthesis.getFiscalYears(),
       ]);
-      setState({ readiness, files, buckets, config, proposals });
+      setState({ readiness, files, buckets, config, proposals, fiscalYears });
     } catch (e) {
       setError(e.message || "Couldn't load decision inputs.");
     }
@@ -62,7 +63,7 @@ export default function DecisionInputsScreen() {
     );
   }
 
-  const { readiness, files, buckets, config, proposals } = state;
+  const { readiness, files, buckets, config, proposals, fiscalYears } = state;
   const byItem = Object.fromEntries(readiness.map((r) => [r.item, r]));
   const filesByType = Object.fromEntries(files.map((f) => [f.file_type, f]));
   const bucketsReady = buckets.length >= 2;
@@ -105,6 +106,12 @@ export default function DecisionInputsScreen() {
                 Manage capacity buckets ({buckets.length})
               </Button>
             </div>
+            {fiscalYears.length > 1 && (
+              <p style={{ fontSize: 12, color: theme.warning, margin: "0 0 12px" }}>
+                Declared fiscal years: {fiscalYears.join(", ")} -- a run must be told which one to analyze
+                (fiscal_year on POST /runs), or it 400s. The Run button asks for one when this happens.
+              </p>
+            )}
             <FileSectionCard fileType="capacity" fileInfo={filesByType.capacity} bucketsReady={bucketsReady} onChanged={load} />
           </SectionShell>
 

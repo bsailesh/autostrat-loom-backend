@@ -250,6 +250,24 @@ def test_ambiguous_fiscal_year_without_explicit_choice_is_a_400():
     assert resp.status_code == 400
     assert "FY27" in resp.json()["detail"] and "FY28" in resp.json()["detail"]
 
+    # The frontend can offer a choice up front instead of discovering the
+    # ambiguity only from that 400.
+    years_resp = client.get("/agents/strategy/fiscal-years", headers=auth_headers(tenant["api_key"]))
+    assert years_resp.status_code == 200
+    assert years_resp.json() == ["FY27", "FY28"]
+
+    # Passing the now-disambiguated year succeeds.
+    with patch.object(StrategySynthesisAgent, "run", return_value=_fake_result()):
+        ok_resp = client.post("/agents/strategy/runs", json={"fiscal_year": "FY27"}, headers=auth_headers(tenant["api_key"]))
+    assert ok_resp.status_code == 202
+
+
+def test_fiscal_years_empty_when_no_capacity_declared():
+    tenant = create_tenant("No Capacity FY Co")
+    resp = client.get("/agents/strategy/fiscal-years", headers=auth_headers(tenant["api_key"]))
+    assert resp.status_code == 200
+    assert resp.json() == []
+
 
 def test_runs_are_tenant_scoped():
     tenant_a = create_tenant("Iso Run A Co")

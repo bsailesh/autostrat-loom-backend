@@ -129,6 +129,7 @@ export const api = {
     getReport: (reportId) => apiFetch(`/agents/strategy/reports/${reportId}`),
     exportRunDocx: (runId) => fetchDocx(`/agents/strategy/runs/${runId}/export.docx`),
     getReadiness: () => apiFetch("/agents/strategy/readiness"),
+    getFiscalYears: () => apiFetch("/agents/strategy/fiscal-years"),
 
     getBuckets: () => apiFetch("/agents/strategy/buckets"),
     putBuckets: (buckets) => apiFetch("/agents/strategy/buckets", { method: "PUT", body: JSON.stringify({ buckets }) }),

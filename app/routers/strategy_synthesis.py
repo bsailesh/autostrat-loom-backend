@@ -830,6 +830,24 @@ def put_scenarios(
 
 
 # ---------------------------------------------------------------------------
+# Fiscal years
+# ---------------------------------------------------------------------------
+
+
+@router.get("/fiscal-years", response_model=list[str])
+def list_fiscal_years(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Distinct fiscal years declared in capacity data, sorted -- the same
+    set default_fiscal_year() reads. Lets the frontend offer a fiscal-year
+    choice before POST /runs, rather than the caller discovering the
+    ambiguity only from that endpoint's 400 (AmbiguousFiscalYearError)."""
+    years = {r.fiscal_year for r in scoped_query(db, CapacityRow, tenant).all()}
+    return sorted(years)
+
+
+# ---------------------------------------------------------------------------
 # Readiness
 # ---------------------------------------------------------------------------
 

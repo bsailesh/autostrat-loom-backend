@@ -2,10 +2,13 @@ import { api } from "../api.js";
 import ReportWorkspaceShell from "../reportWorkspace/ReportWorkspaceShell.jsx";
 import { AGENT_NAME, REPORT_ORDER, reportLabel } from "./reportMeta.js";
 import ReportView from "./ReportView.jsx";
+import { useRunWithFiscalYear } from "./useRunWithFiscalYear.jsx";
 
 // No Gate -- Part 6: "Run is always enabled," unlike Market Insights' scope
 // requirement (marketInsights/Workspace.jsx).
 export default function Workspace() {
+  const { run: startRun, modal: fiscalYearModal } = useRunWithFiscalYear(api.strategySynthesis.startRun);
+
   const adapter = {
     agentName: AGENT_NAME,
     reportOrder: REPORT_ORDER,
@@ -19,7 +22,7 @@ export default function Workspace() {
     getReport: api.strategySynthesis.getReport,
     listRuns: api.strategySynthesis.listRuns,
     getRun: api.strategySynthesis.getRun,
-    startRun: api.strategySynthesis.startRun,
+    startRun,
     exportDocx: api.strategySynthesis.exportRunDocx,
     ReportView,
     emptyStateCopy: {
@@ -33,5 +36,10 @@ export default function Workspace() {
     },
   };
 
-  return <ReportWorkspaceShell adapter={adapter} />;
+  return (
+    <>
+      {fiscalYearModal}
+      <ReportWorkspaceShell adapter={adapter} />
+    </>
+  );
 }
