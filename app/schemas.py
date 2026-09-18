@@ -188,6 +188,7 @@ class IngestResultOut(BaseModel):
     validation_status: str
     errors: list[IngestIssueOut]
     warnings: list[IngestIssueOut]
+    columns: list[str]
 
 
 class BriefFileOut(BaseModel):
@@ -199,6 +200,7 @@ class BriefFileOut(BaseModel):
     row_count: int
     validation_status: str
     issues: list[IngestIssueOut]
+    columns: list[str]
     is_stale: bool
     created_at: datetime
 
@@ -288,6 +290,29 @@ class StrategicObjectiveOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ProposedProjectIn(BaseModel):
+    project_key: str
+    name: str
+    proposed_by: str = ""
+    description: str = ""
+    rationale: str = ""
+
+
+class ProposedProjectsUpsertRequest(BaseModel):
+    proposals: list[ProposedProjectIn]
+
+
+class ProposedProjectOut(BaseModel):
+    id: str
+    project_key: str
+    name: str
+    proposed_by: str
+    description: str
+    rationale: str
+
+    model_config = {"from_attributes": True}
+
+
 class PrioritizationCriterionIn(BaseModel):
     """Weight is a fraction of 1.0 (e.g. 0.25 for 25%), not a percentage
     (e.g. 25) -- the `le=1` bound rejects the latter at the endpoint rather
@@ -367,6 +392,18 @@ class CitationOut(BaseModel):
 class CandidatePatchRequest(BaseModel):
     status: str = Field(description="under_review | scoped | dismissed")
     dismissal_reason: str = ""
+
+
+class CandidateScopeRequest(BaseModel):
+    """Scopes a candidate into the roadmap as a committed project. No score
+    or rank is carried over -- the candidate's evidence supported discovery,
+    not prioritization; the new project is ranked from scratch, like any
+    other roadmap entry, next run."""
+    project_type: str = ""
+    target_fy: str = ""
+    target_gate: str = ""
+    owner: str = ""
+    effort_by_bucket: dict[str, float] = Field(min_length=1)
 
 
 class DiscoveredCandidateOut(BaseModel):

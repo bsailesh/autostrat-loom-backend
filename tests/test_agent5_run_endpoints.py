@@ -128,6 +128,75 @@ def test_post_runs_persists_candidates_without_resurrecting_dismissed_ones():
     assert resp.status_code == 200
 
 
+def test_scope_candidate_creates_roadmap_project_and_marks_scoped():
+    tenant = create_tenant("Scope Candidate Co")
+    headers = auth_headers(tenant["api_key"])
+    client.put(
+        "/agents/strategy/buckets",
+        json={"buckets": [
+            {"bucket_key": "HW", "bucket_name": "Hardware", "contractable": "yes"},
+            {"bucket_key": "SW", "bucket_name": "Software", "contractable": "yes"},
+        ]},
+        headers=headers,
+    )
+
+    with patch.object(StrategySynthesisAgent, "run", return_value=_fake_result(
+        candidates=[Pass1Candidate(key="C-04", name="Route-to-market pilot", origin="x", problem="p",
+                                    evidence_summary="e", support_classification="evidence-supported",
+                                    evidence_strength_rank=1)]
+    )):
+        client.post("/agents/strategy/runs", json={"fiscal_year": "FY27"}, headers=headers)
+
+    resp = client.post(
+        "/agents/strategy/candidates/C-04/scope",
+        json={"project_type": "New product", "target_fy": "FY28", "effort_by_bucket": {"HW": 12, "SW": 8}},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "scoped"
+
+    # scoping again must fail -- it's already a roadmap project now
+    again = client.post(
+        "/agents/strategy/candidates/C-04/scope",
+        json={"effort_by_bucket": {"HW": 5}},
+        headers=headers,
+    )
+    assert again.status_code == 400
+
+
+def test_scope_candidate_rejects_unknown_bucket():
+    tenant = create_tenant("Scope Candidate Bad Bucket Co")
+    headers = auth_headers(tenant["api_key"])
+    client.put(
+        "/agents/strategy/buckets",
+        json={"buckets": [{"bucket_key": "HW", "bucket_name": "Hardware", "contractable": "yes"},
+                           {"bucket_key": "SW", "bucket_name": "Software", "contractable": "yes"}]},
+        headers=headers,
+    )
+    with patch.object(StrategySynthesisAgent, "run", return_value=_fake_result(
+        candidates=[Pass1Candidate(key="C-05", name="X", origin="x", problem="p", evidence_summary="e",
+                                    support_classification="evidence-supported", evidence_strength_rank=1)]
+    )):
+        client.post("/agents/strategy/runs", json={"fiscal_year": "FY27"}, headers=headers)
+
+    resp = client.post(
+        "/agents/strategy/candidates/C-05/scope",
+        json={"effort_by_bucket": {"NOPE": 5}},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+def test_scope_candidate_404s_for_unknown_key():
+    tenant = create_tenant("Scope Candidate Unknown Co")
+    resp = client.post(
+        "/agents/strategy/candidates/C-99/scope",
+        json={"effort_by_bucket": {"HW": 5}},
+        headers=auth_headers(tenant["api_key"]),
+    )
+    assert resp.status_code == 404
+
+
 def test_run_failure_sets_status_failed_with_error_message():
     tenant = create_tenant("Failing Run Co")
     with patch.object(StrategySynthesisAgent, "run", side_effect=RuntimeError("boom")):
@@ -227,6 +296,34 @@ def test_objectives_round_trip():
     client.put("/agents/strategy/objectives", json=payload, headers=auth_headers(tenant["api_key"]))
     result = client.get("/agents/strategy/objectives", headers=auth_headers(tenant["api_key"])).json()
     assert result[0]["objective_key"] == "SO-1"
+
+
+def test_proposals_round_trip():
+    tenant = create_tenant("Proposals Co")
+    payload = {"proposals": [
+        {"project_key": "U-01", "name": "Shore-power retrofit kit", "proposed_by": "VP Sales",
+         "description": "Bundled kit for the retrofit cohort.", "rationale": "Customers keep asking for it."},
+    ]}
+    put_resp = client.put("/agents/strategy/proposals", json=payload, headers=auth_headers(tenant["api_key"]))
+    assert put_resp.status_code == 200, put_resp.text
+    assert put_resp.json()[0]["project_key"] == "U-01"
+
+    result = client.get("/agents/strategy/proposals", headers=auth_headers(tenant["api_key"])).json()
+    assert result[0]["project_key"] == "U-01"
+    assert result[0]["proposed_by"] == "VP Sales"
+
+
+def test_proposals_reject_duplicate_project_keys():
+    tenant = create_tenant("Proposals Dup Co")
+    resp = client.put(
+        "/agents/strategy/proposals",
+        json={"proposals": [
+            {"project_key": "U-01", "name": "A"},
+            {"project_key": "U-01", "name": "B"},
+        ]},
+        headers=auth_headers(tenant["api_key"]),
+    )
+    assert resp.status_code == 400
 
 
 def test_framework_rejects_weights_not_summing_to_one():

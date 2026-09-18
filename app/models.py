@@ -704,6 +704,9 @@ class BriefFile(Base):
     # last upload attempt, so GET /agents/strategy/files can show why it
     # failed (or what it warned about) without re-parsing the file.
     issues: Mapped[list] = mapped_column(JSON, default=list)
+    # The CSV's header row, captured at upload time -- so the decision inputs
+    # screen can show "detected columns" without keeping the raw file around.
+    columns: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

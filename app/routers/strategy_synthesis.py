@@ -11,6 +11,7 @@ app/strategy_synthesis_service.py, not here -- Agent 5 touches 17
 decision-inputs tables versus Market Insights' one AgentScope, so keeping
 that logic out of the router keeps this file readable.
 """
+import csv
 import dataclasses
 import io
 import re
@@ -38,6 +39,7 @@ from app.models import (
     ProjectDependency,
     ProjectEffortRow,
     ProjectFinancialsRow,
+    ProposedProject,
     ScenarioRow,
     ScenarioWeight,
     StrategicObjective,
@@ -51,6 +53,7 @@ from app.schemas import (
     AgentRunOut,
     BriefFileOut,
     CandidatePatchRequest,
+    CandidateScopeRequest,
     CapacityBucketOut,
     CapacityBucketsUpsertRequest,
     DiscoveredCandidateOut,
@@ -59,6 +62,8 @@ from app.schemas import (
     FrameworkUpsertRequest,
     IngestIssueOut,
     IngestResultOut,
+    ProposedProjectOut,
+    ProposedProjectsUpsertRequest,
     ReadinessItemOut,
     ScenarioOut,
     ScenariosUpsertRequest,
@@ -245,6 +250,10 @@ async def upload_file(
 
     raw_bytes = await file.read()
     text = raw_bytes.decode("utf-8-sig")  # -sig tolerates a BOM from Excel exports
+    # Header row only, independent of ingest.py's row parsing below -- so the
+    # decision inputs screen can show "detected columns" even when the file
+    # is otherwise empty or rejected outright.
+    columns = list(csv.DictReader(io.StringIO(text)).fieldnames or [])
 
     as_of_dt: datetime | None = None
     if as_of:
@@ -350,6 +359,7 @@ async def upload_file(
             row_count=row_count,
             validation_status=validation_status,
             issues=[_issue_dict(i) for i in issues],
+            columns=columns,
         )
     )
     db.commit()
@@ -361,6 +371,7 @@ async def upload_file(
         validation_status=validation_status,
         errors=_issues_out([_issue_dict(i) for i in issues if i.severity == "error"]),
         warnings=_issues_out([_issue_dict(i) for i in issues if i.severity == "warning"]),
+        columns=columns,
     )
 
 
@@ -390,6 +401,7 @@ def list_files(
                 row_count=row.row_count,
                 validation_status=row.validation_status,
                 issues=_issues_out(row.issues),
+                columns=row.columns,
                 is_stale=is_stale,
                 created_at=row.created_at,
             )
@@ -633,6 +645,48 @@ def put_objectives(
 
 
 # ---------------------------------------------------------------------------
+# Proposals
+# ---------------------------------------------------------------------------
+
+
+@router.get("/proposals", response_model=list[ProposedProjectOut])
+def get_proposals(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    return scoped_query(db, ProposedProject, tenant).order_by(ProposedProject.created_at.asc()).all()
+
+
+@router.put("/proposals", response_model=list[ProposedProjectOut])
+def put_proposals(
+    payload: ProposedProjectsUpsertRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """Replaces the tenant's proposed projects wholesale -- how a design
+    partner's own ideas (no effort estimate, never ranked) enter the
+    candidate set, distinct from DiscoveredCandidate's agent-discovered
+    ones."""
+    keys = [p.project_key.strip() for p in payload.proposals]
+    if len(keys) != len(set(keys)):
+        raise HTTPException(status_code=400, detail="project_key values must be unique.")
+
+    scoped_query(db, ProposedProject, tenant).delete()
+    rows = []
+    for p in payload.proposals:
+        row = ProposedProject(
+            tenant_id=tenant.id, project_key=p.project_key.strip(), name=p.name,
+            proposed_by=p.proposed_by, description=p.description, rationale=p.rationale,
+        )
+        db.add(row)
+        rows.append(row)
+    db.commit()
+    for row in rows:
+        db.refresh(row)
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Framework
 # ---------------------------------------------------------------------------
 
@@ -822,3 +876,68 @@ def patch_candidate(
     db.commit()
     db.refresh(row)
     return row
+
+
+@router.post("/candidates/{key}/scope", response_model=DiscoveredCandidateOut)
+def scope_candidate(
+    key: str,
+    payload: CandidateScopeRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+):
+    """The bridge from the unscoped candidate population into the ranked
+    portfolio: adds one PortfolioProject (+ its per-bucket effort) to the
+    roadmap outside the CSV wholesale-replace path, and marks the source
+    candidate scoped so it stops appearing as still-unscoped. `mandatory` is
+    never set here -- always False, per PortfolioProject's own invariant
+    (never inferred, only a customer declaration via roadmap.csv)."""
+    candidate = (
+        scoped_query(db, DiscoveredCandidate, tenant)
+        .filter(DiscoveredCandidate.candidate_key == key)
+        .first()
+    )
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="DiscoveredCandidate not found")
+
+    declared_buckets = _declared_bucket_keys(db, tenant)
+    unknown_buckets = set(payload.effort_by_bucket) - declared_buckets
+    if unknown_buckets:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown bucket_key(s): {sorted(unknown_buckets)}. Declared buckets: {sorted(declared_buckets)}",
+        )
+
+    existing = (
+        scoped_query(db, PortfolioProject, tenant)
+        .filter(PortfolioProject.project_key == candidate.candidate_key)
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=400, detail=f"{candidate.candidate_key!r} is already a roadmap project."
+        )
+
+    db.add(
+        PortfolioProject(
+            tenant_id=tenant.id,
+            project_key=candidate.candidate_key,
+            name=candidate.name,
+            project_type=payload.project_type,
+            status="Not started",
+            target_fy=payload.target_fy,
+            target_gate=payload.target_gate,
+            owner=payload.owner,
+            mandatory=False,
+        )
+    )
+    for bucket_key, effort_remaining in payload.effort_by_bucket.items():
+        db.add(
+            ProjectEffortRow(
+                tenant_id=tenant.id, project_key=candidate.candidate_key,
+                bucket_key=bucket_key, effort_remaining=effort_remaining,
+            )
+        )
+    candidate.status = "scoped"
+    db.commit()
+    db.refresh(candidate)
+    return candidate

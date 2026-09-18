@@ -198,6 +198,20 @@ def test_successful_reupload_replaces_prior_rows():
     assert any("P-01" in e["message"] for e in dep.json()["errors"])
 
 
+def test_upload_response_and_files_list_report_detected_columns():
+    tenant = create_tenant("Columns Co")
+    put_buckets(tenant["api_key"], DEFAULT_BUCKETS)
+
+    resp = upload(tenant["api_key"], "roadmap", "roadmap.csv", VALID_ROADMAP)
+    assert resp.json()["stored"] is True
+    expected_columns = VALID_ROADMAP.splitlines()[0].split(",")
+    assert resp.json()["columns"] == expected_columns
+
+    files = client.get("/agents/strategy/files", headers=auth_headers(tenant["api_key"])).json()
+    roadmap_file = next(f for f in files if f["file_type"] == "roadmap")
+    assert roadmap_file["columns"] == expected_columns
+
+
 # ---------------------------------------------------------------------------
 # Templates
 # ---------------------------------------------------------------------------
