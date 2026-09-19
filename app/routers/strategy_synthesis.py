@@ -865,6 +865,17 @@ def get_readiness(
 
 # ---------------------------------------------------------------------------
 # Candidates
+#
+# KNOWN GAP (logged 2026-09-18, not scheduled): there is no delete path for
+# DiscoveredCandidate. PATCH .../{key} can mark one "dismissed", but the row
+# (and every other status) persists forever -- a customer who enters a
+# candidate in error, or a tenant reused across unrelated demo briefs, has
+# no way to actually remove one. persist_candidates() below is also
+# purely additive (new candidate_key -> new row; never deletes a row absent
+# from the current run), so this can't be worked around by re-running
+# either. Fix would be a real DELETE /candidates/{key} (and/or a
+# status-filtered bulk variant) plus a decision on what "delete" means once
+# a candidate has been scoped into the roadmap.
 # ---------------------------------------------------------------------------
 
 
