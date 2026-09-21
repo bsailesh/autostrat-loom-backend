@@ -118,7 +118,9 @@ def compute_readiness(db: Session, tenant: Tenant, fiscal_year: str | None) -> l
     any of this."""
 
     def _item(name: str, is_set: bool, consequence: str) -> dict:
-        return {"item": name, "status": "set" if is_set else "missing", "consequence": consequence}
+        # consequence describes what's missing -- irrelevant, and
+        # contradictory, once the item is actually set.
+        return {"item": name, "status": "set" if is_set else "missing", "consequence": "" if is_set else consequence}
 
     capacity_q = scoped_query(db, CapacityRow, tenant)
     if fiscal_year:

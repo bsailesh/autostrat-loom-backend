@@ -511,6 +511,24 @@ def test_readiness_reflects_incomplete_brief_with_stated_consequence():
     assert by_item["Scenarios"]["consequence"] == "Base case only."
 
 
+def test_readiness_clears_consequence_once_an_item_is_set():
+    tenant = create_tenant("Readiness Set Co")
+    headers = auth_headers(tenant["api_key"])
+    client.put(
+        "/agents/strategy/objectives",
+        json={"objectives": [{"objective_key": "SO-1", "text": "x", "horizon": "FY28"}]},
+        headers=headers,
+    )
+    items = client.get("/agents/strategy/readiness", headers=headers).json()
+    by_item = {i["item"]: i for i in items}
+
+    assert by_item["Objectives"]["status"] == "set"
+    assert by_item["Objectives"]["consequence"] == ""
+    # untouched items still report their consequence
+    assert by_item["Capacity"]["status"] == "missing"
+    assert by_item["Capacity"]["consequence"] != ""
+
+
 def test_readiness_never_blocks_a_run():
     tenant = create_tenant("Readiness Never Blocks Co")
     items = client.get("/agents/strategy/readiness", headers=auth_headers(tenant["api_key"])).json()
