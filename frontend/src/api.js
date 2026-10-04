@@ -121,6 +121,38 @@ export const api = {
     exportRunDocx: (runId) => fetchDocx(`/agents/market-insights/runs/${runId}/export.docx`),
   },
 
+  // Agent 3. Its own namespace, like the other two -- the scope here is
+  // eight dimensions rather than one free-text product line, and candidate
+  // work is a first-class object rather than something parsed out of a
+  // report.
+  techRegulation: {
+    getScope: (dimension) => apiFetch(`/agents/tech-regulation/scope/${dimension}`),
+    putScope: (dimension, rows) =>
+      apiFetch(`/agents/tech-regulation/scope/${dimension}`, {
+        method: "PUT",
+        body: JSON.stringify(rows),
+      }),
+    getScopeState: () => apiFetch("/agents/tech-regulation/scope/state"),
+
+    startRun: (payload) =>
+      apiFetch("/agents/tech-regulation/runs", { method: "POST", body: JSON.stringify(payload || {}) }),
+    listRuns: () => apiFetch("/agents/tech-regulation/runs"),
+    getRun: (runId) => apiFetch(`/agents/tech-regulation/runs/${runId}`),
+    listRunReports: (runId) => apiFetch(`/agents/tech-regulation/runs/${runId}/reports`),
+    getReport: (reportId) => apiFetch(`/agents/tech-regulation/reports/${reportId}`),
+    exportRunDocx: (runId) => fetchDocx(`/agents/tech-regulation/runs/${runId}/export.docx`),
+
+    listCandidateWork: (runId) =>
+      apiFetch("/agents/tech-regulation/candidate-work" + (runId ? `?run_id=${runId}` : "")),
+    patchCandidateWork: (key, payload) =>
+      apiFetch(`/agents/tech-regulation/candidate-work/${key}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    deleteCandidateWork: (key) =>
+      apiFetch(`/agents/tech-regulation/candidate-work/${key}`, { method: "DELETE" }),
+  },
+
   strategySynthesis: {
     startRun: (payload) => apiFetch("/agents/strategy/runs", { method: "POST", body: JSON.stringify(payload || {}) }),
     listRuns: () => apiFetch("/agents/strategy/runs"),

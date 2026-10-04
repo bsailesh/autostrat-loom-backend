@@ -32,6 +32,7 @@ from app.models import (
     ScenarioRow,
     ScenarioWeight,
     StrategicObjective,
+    TrCandidateWork,
     StrategyConfig,
     StrategyRule,
     Tenant,
@@ -227,6 +228,77 @@ def load_upstream_text(
             )
         result[agent_type] = text
     return result
+
+
+# ---------------------------------------------------------------------------
+# Structured candidate work from Agent 3
+# ---------------------------------------------------------------------------
+
+# Agent 3's candidate work reaches Pass 1 as rows, not prose. That agent
+# generates it structurally before narrating it into its reports, so this read
+# is a straight table read -- no parsing of report markdown, and therefore no
+# second parser of an undocumented contract to drift out of step with the
+# first. Pass 1's own discovery from upstream markdown is untouched and runs
+# alongside this.
+TECH_REGULATION_AGENT_TYPE = "tech-regulation"
+
+# What Pass 1 is given per item. Deliberately not the whole row: `status` and
+# `dismissal_reason` are Agent 3's own triage and are not Pass 1's business,
+# and the id/timestamps are noise in a prompt.
+_CANDIDATE_WORK_PROMPT_FIELDS = (
+    "candidate_key",
+    "driver",
+    "work_date",
+    "date_basis",
+    "date_absent_reason",
+    "applicability",
+    "work_implied",
+    "work_implied_description",
+    "platform_relationship",
+    "classification",
+    "confidence",
+    "source",
+    "source_date",
+)
+
+
+def load_structured_candidate_work(
+    db: Session, tenant: Tenant, overrides: dict[str, str] | None
+) -> list[dict]:
+    """The candidate work for the selected upstream Tech & Regulation run.
+
+    Run selection matches load_upstream_text exactly -- an explicit override
+    wins, otherwise the most recent successful run -- so the rows and the
+    report prose in the same Pass 1 prompt always come from the same run.
+
+    Filters on `last_seen_run_id`, so an item an earlier run discovered and
+    this one re-confirmed is included. Filtering on first-seen would drop a
+    corrected item from the very run that corrected it.
+
+    Dismissed items are excluded: Agent 3 has judged the finding not real or
+    not relevant, and re-presenting it as a candidate would ignore that. The
+    item stays in tr_candidate_work, so the dismissal survives and the
+    frontend can still show it.
+    """
+    overrides = overrides or {}
+    run_id = overrides.get(TECH_REGULATION_AGENT_TYPE) or _most_recent_successful_run_id(
+        db, tenant, TECH_REGULATION_AGENT_TYPE
+    )
+    if run_id is None:
+        return []
+
+    rows = (
+        scoped_query(db, TrCandidateWork, tenant)
+        .filter(
+            TrCandidateWork.last_seen_run_id == run_id,
+            TrCandidateWork.status != "dismissed",
+        )
+        .order_by(TrCandidateWork.candidate_key.asc())
+    )
+    return [
+        {field: getattr(row, field) for field in _CANDIDATE_WORK_PROMPT_FIELDS}
+        for row in rows.yield_per(1)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +521,10 @@ def execute_run(
             brief = assemble_brief(db, tenant, fiscal_year)
             upstream_text_by_agent = load_upstream_text(db, tenant, agent, upstream_run_overrides)
 
-            result = agent.run(brief, upstream_text_by_agent)
+            structured_candidates = load_structured_candidate_work(
+                db, tenant, upstream_run_overrides
+            )
+            result = agent.run(brief, upstream_text_by_agent, structured_candidates)
 
             for report in result.reports:
                 db.add(

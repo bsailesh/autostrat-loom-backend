@@ -14,6 +14,9 @@ import StrategySynthesisEntry from "./strategySynthesis/StrategySynthesisEntry.j
 import StrategySynthesisWorkspace from "./strategySynthesis/Workspace.jsx";
 import DecisionInputsScreen from "./strategySynthesis/decisionInputs/DecisionInputsScreen.jsx";
 import BucketsSubScreen from "./strategySynthesis/decisionInputs/BucketsSubScreen.jsx";
+import TechRegulationEntry from "./techRegulation/TechRegulationEntry.jsx";
+import TechRegulationWorkspace from "./techRegulation/Workspace.jsx";
+import TechRegulationScopeScreen from "./techRegulation/ScopeScreen.jsx";
 import { Settings as SettingsIcon } from "lucide-react";
 
 function FullPageLoader() {
@@ -66,6 +69,12 @@ export default function App() {
         <Route path="/agents/strategy-synthesis/workspace" element={<StrategySynthesisWorkspace />} />
         <Route path="/agents/strategy-synthesis/runs/:runId" element={<StrategySynthesisWorkspace />} />
         <Route path="/agents/strategy-synthesis/runs/:runId/reports/:reportId" element={<StrategySynthesisWorkspace />} />
+
+        <Route path="/agents/tech-regulation" element={<TechRegulationEntry />} />
+        <Route path="/agents/tech-regulation/scope" element={<TechRegulationScopeScreen />} />
+        <Route path="/agents/tech-regulation/workspace" element={<TechRegulationWorkspace />} />
+        <Route path="/agents/tech-regulation/runs/:runId" element={<TechRegulationWorkspace />} />
+        <Route path="/agents/tech-regulation/runs/:runId/reports/:reportId" element={<TechRegulationWorkspace />} />
 
         <Route
           path="/settings"

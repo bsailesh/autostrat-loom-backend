@@ -35,6 +35,23 @@ class Pass1Candidate(BaseModel):
     evidence_strength_rank: int = Field(description="Lower is stronger. Ordering basis only -- never a score.")
     source_citations: list[Pass1Citation] = Field(default_factory=list)
 
+    # Populated only for candidates carried from Agent 3's structured
+    # candidate work (tr_candidate_work rows, read directly rather than
+    # parsed out of its report prose). Empty for candidates Pass 1 inferred
+    # from upstream markdown, and that asymmetry is the distinguishability
+    # between the two populations: a structured one carries its driver and
+    # date, a prose-derived one does not.
+    #
+    # Deliberately NOT persisted onto DiscoveredCandidate. `driver` and
+    # `work_date` live once, in tr_candidate_work, and the linked row is
+    # reached through `source_candidate_key` (also carried in `origin`). A
+    # copy here would go stale the moment a Tech & Regulation re-run
+    # corrected a date, with nothing to refresh it.
+    driver: str = Field(default="", description="The named regulation, revision or notice driving the work")
+    work_date: str | None = Field(default=None, description="Effective date, deadline, runout or window close")
+    date_basis: str = Field(default="", description="Which kind of date work_date is, or none_established")
+    source_candidate_key: str = Field(default="", description="The tr_candidate_work key this came from")
+
 
 class Pass1DimensionScore(BaseModel):
     criterion: str

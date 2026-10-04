@@ -16,6 +16,7 @@ import { PageHeader } from "../components/PageHeader.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { useMarketInsightsStatus } from "../marketInsights/useMarketInsights.js";
 import { useStrategySynthesisStatus } from "../strategySynthesis/useStrategySynthesis.js";
+import { useTechRegulationStatus } from "../techRegulation/useTechRegulation.js";
 import { useRunWithFiscalYear, CANCELLED_MESSAGE } from "../strategySynthesis/useRunWithFiscalYear.jsx";
 import { relativeTime } from "../lib/time.js";
 
@@ -23,7 +24,6 @@ import { relativeTime } from "../lib/time.js";
 // "Not subscribed" state and are intentionally inert.
 const PLACEHOLDER_AGENTS = [
   { id: "voc", name: "Voice of customer", icon: MessageCircle, blurb: "Ranked pain points, personas, opportunity map" },
-  { id: "tech", name: "Tech & regulation", icon: FlaskConical, blurb: "Patents, research and growth-tech visibility" },
   { id: "sustainment", name: "Product sustainment", icon: Wrench, blurb: "Quality, obsolescence and reliability needs" },
 ];
 
@@ -31,6 +31,7 @@ export default function HomeDashboard() {
   const { session } = useAuth();
   const mi = useMarketInsightsStatus();
   const strategy = useStrategySynthesisStatus();
+  const techReg = useTechRegulationStatus();
 
   return (
     <>
@@ -41,7 +42,7 @@ export default function HomeDashboard() {
             <p style={{ fontWeight: 700, fontSize: 18, margin: "0 0 2px" }}>Your agents</p>
             <p style={{ fontSize: 13, color: theme.textSecondary, margin: 0 }}>Complexity in. Clarity out.</p>
           </div>
-          <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>1 of 4 active</p>
+          <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>3 of 5 active</p>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, maxWidth: 720 }}>
@@ -51,6 +52,7 @@ export default function HomeDashboard() {
           ))}
         </div>
 
+        <TechRegulationCard tr={techReg} />
         <StrategySynthesisCard strategy={strategy} />
       </div>
     </>
@@ -194,6 +196,113 @@ function NotSubscribedCard({ def }) {
     </Card>
   );
 }
+
+function TechRegulationCard({ tr }) {
+  const navigate = useNavigate();
+  const { latestRun, active, loading, error, operatingState } = tr;
+
+  const goWorkspace = () => navigate("/agents/tech-regulation");
+  const goScope = () => navigate("/agents/tech-regulation/scope");
+
+  let badge;
+  if (loading) badge = <Spinner size={12} />;
+  else if (active)
+    badge = (
+      <Badge tone="accent">
+        <Spinner size={10} /> Running
+      </Badge>
+    );
+  else if (latestRun?.status === "failed") badge = <Badge tone="danger">Last run failed</Badge>;
+  else badge = <Badge tone="success">Active</Badge>;
+
+  async function onRun(e) {
+    e.stopPropagation();
+    // A run is never blocked by an incomplete envelope -- but an unscoped
+    // run produces an industry survey rather than an applicability
+    // assessment, and that is worth saying once before it costs twenty
+    // minutes rather than only in the output afterwards.
+    if (operatingState === "unscoped") {
+      const ok = window.confirm(
+        "No applicability envelope is supplied, so this run will be an industry survey rather than an " +
+          "assessment of your obligations. Reports will be titled as such.\n\nRun anyway?"
+      );
+      if (!ok) return;
+    }
+    try {
+      const run = await tr.startRun();
+      navigate(`/agents/tech-regulation/runs/${run.id}`);
+    } catch (err) {
+      alert(err.message || "Couldn't start the run.");
+    }
+  }
+
+  const stateNote =
+    operatingState === "scoped"
+      ? "Scoped — findings assessed against your own approvals"
+      : operatingState === "partially_scoped"
+      ? "Partially scoped — some dimensions missing"
+      : operatingState === "unscoped"
+      ? "Unscoped — industry survey only until an envelope is supplied"
+      : null;
+
+  return (
+    <Card accent onClick={goWorkspace} style={{ maxWidth: 720, marginTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <FlaskConical size={18} color={theme.orange} />
+        {badge}
+      </div>
+      <p style={{ fontWeight: 600, fontSize: 15, margin: "0 0 4px" }}>Technology and regulation</p>
+      <p style={{ fontSize: 13, color: theme.textSecondary, margin: "0 0 10px" }}>
+        Tracks regulatory changes, standards revisions, supplier discontinuations and technology maturity
+        against your certification basis — and names the work each one implies, dated where a date exists.
+      </p>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderTop: `1px solid ${theme.border}`,
+          marginTop: 12,
+          paddingTop: 10,
+          gap: 8,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          {error ? (
+            <p style={{ fontSize: 12, color: theme.danger, margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+              <AlertTriangle size={12} /> {error}
+            </p>
+          ) : active ? (
+            <p style={{ fontSize: 12, color: theme.textMuted, margin: 0 }}>Run in progress…</p>
+          ) : (
+            <p style={{ fontSize: 12, color: theme.textMuted, margin: 0 }}>
+              {latestRun
+                ? `${latestRun.status === "failed" ? "Last run failed" : "Last run"} · ${relativeTime(latestRun.created_at)}`
+                : "No runs yet"}
+              {stateNote ? ` · ${stateNote}` : ""}
+            </p>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <button
+            title="Applicability envelope"
+            onClick={(e) => {
+              e.stopPropagation();
+              goScope();
+            }}
+            style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+          >
+            <SettingsIcon size={15} color={theme.textMuted} />
+          </button>
+          <Button small icon={active ? undefined : Play} disabled={active} onClick={onRun}>
+            {active ? "Running…" : "Run"}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 
 function StrategySynthesisCard({ strategy }) {
   const navigate = useNavigate();
