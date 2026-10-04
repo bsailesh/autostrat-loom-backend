@@ -233,8 +233,10 @@ def _opening_instruction(spec: ReportSpec) -> str:
             "about what the evidence shows, never a course of action."
         )
     return (
-        "Open with a level-2 heading exactly '## Key Insights', followed by 4-5 bulleted "
-        "findings, each one sentence and each tagged with its confidence."
+        "Open with a level-2 heading exactly '## Key Insights', followed by at most "
+        "three bulleted insights -- a ceiling, not a target. Each is one sentence, "
+        "states its consequence, and ends with a short tag such as "
+        "(Confidence: High -- FACT). Everything else goes in the body."
     )
 
 

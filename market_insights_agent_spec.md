@@ -95,7 +95,7 @@ Every Executive Summary (Report 1 for each of Agents 1 through 4, and the Decisi
 
 -   **Answer:** the report's single most important finding, stated as a claim --- not a topic sentence.
 
-Report and section titles elsewhere in the document keep their existing plain descriptive names (matching the Required Outputs list for each agent). This requirement applies specifically to the opening of Report 1 / Executive Summary content, not to every heading in the document.
+Report and section titles elsewhere in the document keep their existing plain descriptive names (matching the Required Outputs list for each agent). This requirement applies specifically to the opening of each agent's principal decision report, not to every heading in the document.
 
 *Weak (topic label, not an insight): \"This report covers the competitive landscape for airborne collision avoidance systems.\"*
 
@@ -113,9 +113,21 @@ This applies uniformly across all five agents. It does not apply to Market Insig
 
 ## Key Insights Box Requirement
 
-Every report --- except Report 1 / Executive Summary and the Decision Brief, which use the Governing Insight (SCQA) structure above instead --- opens with a Key Insights box: 4 to 5 bullets pulling that specific report's most materially important findings, each tagged with its confidence level per the Evidence & Confidence Standard.
+Every report other than the agent's principal decision report, which uses the Governing Insight (SCQA) structure above instead, opens with a Key Insights box pulling that specific report's most materially important findings, unless its own instructions specify no special opening.
 
-This is a scan-friendly summary of that report specifically, not a restatement of the whole program's governing insight. Keep each bullet to one sentence. Do not pad to reach 5 bullets if a report genuinely has fewer than 4 material findings --- state fewer rather than manufacture filler.
+**Maximum three insights. One sentence each. Each states its consequence.**
+
+- Three is a ceiling, not a target. Two well-evidenced insights beat three where the third is padding.
+- One sentence means one sentence. A sentence with three semicolons is three sentences.
+- Each insight states what follows from it --- the consequence --- not just the observation.
+- Confidence and classification stay, per the Evidence & Confidence Standard, as a short tag rather than a clause.
+- Everything cut moves into the body. Nothing is lost; it stops being presented as a headline.
+
+**Selection rule.** Where more than three candidates exist, prefer, in order: (1) a finding that changes what the reader would do; (2) a finding that contradicts what the reader likely believes; (3) a finding that is dated, and therefore schedulable; (4) a gap that blocks something --- a missing input, an unserved objective, an unavailable analysis. Prefer one insight that connects two findings over two insights that each state one.
+
+This is a scan-friendly summary of that report specifically, not a restatement of the whole program's governing insight.
+
+**The Governing Insight (SCQA) is not capped.** Situation / Complication / Question / Answer is four sentences by construction, and it is where synthesis across findings happens. SCQA reasons; key insights report. A cap on reporting does not constrain reasoning.
 
 ## Visual Requirement
 
@@ -275,7 +287,7 @@ Primary analysis:
 
 -   Future projections shall always be identified as forecasts.
 
-Every insight this agent produces must meet the shared Evidence & Confidence Standard (see the Evidence & Confidence Standard section near the start of this document), including the Fact / Observation / Interpretation / Forecast / Unknown classification. Reports must also meet the Consulting-Grade Output Standard (see the Consulting-Grade Output Standard section): conflicting estimates are triangulated, the Executive Summary opens with a governing insight, and every material finding states its implication. Every other report opens with a Key Insights box of 4-5 confidence-tagged bullets, and includes at least one visual element wherever the data supports one.
+Every insight this agent produces must meet the shared Evidence & Confidence Standard (see the Evidence & Confidence Standard section near the start of this document), including the Fact / Observation / Interpretation / Forecast / Unknown classification. Reports must also meet the Consulting-Grade Output Standard (see the Consulting-Grade Output Standard section): conflicting estimates are triangulated, the Executive Summary opens with a governing insight, and every material finding states its implication. Every other report opens with a Key Insights box of at most three one-sentence, consequence-stating, confidence-tagged insights, and includes at least one visual element wherever the data supports one.
 
 #### Objectives
 

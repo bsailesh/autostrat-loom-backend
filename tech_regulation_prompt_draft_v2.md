@@ -122,7 +122,8 @@ in a primary source is OBSERVATION, not FACT.
 
 Technology sources: NASA, DARPA, DoD, DOE, NIST, national laboratories,
 university research, IEEE, SAE, AIAA, ASME, ASTM, industry research bodies,
-government-funded programmes, patent databases, peer-reviewed publications,
+government-funded programmes, patent filings and licensing reported in public
+sources, peer-reviewed publications,
 competitor technical and conference papers, SBIR/STTR, supplier technical
 papers, standards working groups, product announcements, job postings, M&A and
 investment activity.
@@ -233,7 +234,7 @@ see. A candidate that never gets scoped is a legitimate outcome.
 
 > **Driver:** EASA has stated a VTOL flight-recorder requirement is essential;
 > no published standard exists (Source: EASA, Jun 2026). Two competitors have
-> filed in this area since 2025 (patent databases).
+> announced filings in this area since 2025 (company press releases).
 > **Applicability:** advanced air mobility — a monitored domain; no current
 > product category.
 > **Work implied:** standards working group participation; assessment of a
@@ -276,12 +277,50 @@ institutions, partnerships, joint ventures, investors, funding programmes.
 
 **Only evidenced relationships.** An edge on a map reads as verified fact.
 
-### 4.4 Patent and IP landscape
+### 4.4 Patent and IP evidence
 
-Filings, families, emerging assignees, clusters, activity trends, licensing.
+**Scoped to sources the agent can reach.** The agent has web search, not a
+patent database. (Revised after the 4 Oct 2026 Arden run, whose patent section
+was honestly reported as unperformable — see `patent_and_summary_briefing.md`.)
 
-State where patent activity and commercial adoption diverge — a cluster of
-filings with no product is a signal of intent, and saying so is the finding.
+**What the agent researches:**
+
+- Patent and application filings reported in trade press, company
+  announcements, press releases and investor materials
+- Licensing agreements, cross-licensing and patent-pool participation where
+  publicly announced
+- Patent litigation and opposition proceedings reported in public sources
+- IP positions asserted in company technical papers, conference papers and
+  standards contributions
+- Patent-analytics vendor reports where a specific finding and date can be
+  cited
+
+**What the agent does not claim:**
+
+- Filing counts, family sizes or assignee rankings. These require a patent
+  database and cannot be derived from web search
+- Technology clustering or whitespace analysis
+- Any statement about what has *not* been filed
+
+**Required statement in Report 4**, and wherever else patent material appears:
+
+> "This is not a patent-database search. Patent findings below are limited to
+> filings, licensing and litigation reported in public sources. Absence of a
+> finding here is not evidence that no filing exists."
+
+**Search axes.** State which ran and which did not:
+
+1. The customer's own product categories — the most valuable axis, since an
+   unknown entrant filing in your category is the signal worth catching
+2. Named assignees from the supplier watch list and competitors found in
+   research — **unavailable where supplier names are anonymised or
+   placeholders.** Say so rather than reporting the axis as performed
+3. Monitored technology domains
+
+A patent is evidence of investment and intent, not of a working or
+commercially available product. Always distinguish patent activity from
+commercial adoption — a filing with no product is a signal of intent, and
+saying so is the finding.
 
 ### 4.5 R&D landscape
 
@@ -496,7 +535,20 @@ computed downstream against capacity and objectives this agent cannot see.
    withhold until run-to-run state exists?
 3. **Eleven reports** is the largest pack in the platform. Confirm the full set
    for v1, or ship a subset — Reports 1–8 would be a defensible v1
-4. **Patent search depth** — unbounded in the spec. Needs a scoping rule: by
-   assignee from the competitor set, by classification, by date?
+4. **Patent search depth** — RESOLVED. Three axes (customer categories first,
+   named assignees, monitored domains), five-year window, scoped to public
+   sources — see §4.4
 5. **Certification basis vocabulary** — controlled list or free text? Carried
    from the scoping input spec
+
+---
+
+## Known limitations
+
+- **No patent database.** Full patent landscape analysis — filing counts,
+  families, assignee rankings, technology clustering, whitespace — needs a
+  patent database: EPO OPS, USPTO PatentsView, Google Patents BigQuery or a
+  commercial vendor. That is a new dependency and a new cost, and is out of
+  scope for now. Until it exists, §4.4 is limited to filings, licensing and
+  litigation reported in public sources, and every report carrying patent
+  material says so.

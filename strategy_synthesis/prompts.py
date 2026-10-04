@@ -144,9 +144,11 @@ def _opening_instruction(spec: ReportSpec) -> str:
         )
     if spec.opening == "key_insights":
         return (
-            "Open with a level-2 heading exactly '## Key Insights', followed by a "
-            "bulleted list of the report's most material findings, each with its "
-            "implication and confidence."
+            "Open with a level-2 heading exactly '## Key Insights', followed by at "
+            "most three bulleted insights -- a ceiling, not a target. Each is one "
+            "sentence, states its consequence, and ends with a short tag carrying "
+            "confidence and basis label, such as (Confidence: High -- calculated). "
+            "Everything else goes in the body."
         )
     return "No special opening heading is required for this report -- go straight into the content."
 
