@@ -95,7 +95,7 @@ Every Executive Summary (Report 1 for each of Agents 1 through 4, and the Decisi
 
 -   **Answer:** the report's single most important finding, stated as a claim --- not a topic sentence.
 
-Report and section titles elsewhere in the document keep their existing plain descriptive names (matching the Required Outputs list for each agent). This requirement applies specifically to the opening of Report 1 / Executive Summary content, not to every heading in the document.
+Report and section titles elsewhere in the document keep their existing plain descriptive names (matching the Required Outputs list for each agent). This requirement applies specifically to the opening of each agent's principal decision report, not to every heading in the document.
 
 *Weak (topic label, not an insight): \"This report covers the competitive landscape for airborne collision avoidance systems.\"*
 
@@ -113,7 +113,7 @@ This applies uniformly across all five agents. It does not apply to Market Insig
 
 ## Key Insights Box Requirement
 
-Every report --- except Report 1 / Executive Summary and the Decision Brief, which use the Governing Insight (SCQA) structure above instead --- opens with a Key Insights box pulling that specific report's most materially important findings.
+Every report other than the agent's principal decision report, which uses the Governing Insight (SCQA) structure above instead, opens with a Key Insights box pulling that specific report's most materially important findings, unless its own instructions specify no special opening.
 
 **Maximum three insights. One sentence each. Each states its consequence.**
 

@@ -88,8 +88,13 @@ fabricate a decomposition to satisfy this requirement.
 
 ## Governing Insight Requirement (SCQA)
 
-Report 1 / Executive Summary must open with a governing insight, not a neutral
-topic label. Use the Situation / Complication / Question / Answer structure:
+Each agent's principal decision report — the report that carries the agent's
+overall answer — must open with a governing insight, not a neutral topic label.
+Which report that is differs by agent and is set in that report's own
+instructions: Report 1 for Market Insights and Technology & Regulation, Report 7
+(the Decision Brief) for Strategy Synthesis, whose Report 1 opens with Key
+Insights instead. Use the Situation / Complication / Question / Answer
+structure:
 - Situation: the stable, agreed-upon context, in one sentence.
 - Complication: what has changed, or what is at risk, in one sentence.
 - Question: the decision this report exists to inform.
@@ -121,9 +126,10 @@ highest published estimate will materially overstate reachable revenue."
 
 ## Key Insights Box Requirement
 
-Every report — except Report 1 / Executive Summary, which uses the Governing
-Insight (SCQA) structure instead — opens with a Key Insights box pulling that
-specific report's most materially important findings.
+Every other report opens with a Key Insights box pulling that specific report's
+most materially important findings, unless its own instructions specify no
+special opening. The principal decision report uses the Governing Insight
+(SCQA) structure instead.
 
 **Maximum three insights. One sentence each. Each states its consequence.**
 
