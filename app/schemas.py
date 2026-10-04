@@ -9,6 +9,8 @@ Two jobs happen here:
    have to regex out of a paragraph.
 """
 from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -630,3 +632,127 @@ class AuditLogOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---------- Technology & Regulatory Intelligence agent (Agent 3) ----------
+#
+# The eight scoping dimensions are each a GET/PUT list: the PUT replaces that
+# dimension wholesale, which keeps the form-based UI simple (edit the rows,
+# save the section) and avoids per-row id juggling for an envelope this
+# small. Controlled vocabularies are validated here rather than in the
+# database, matching app/models.py's convention of no DB-level enums.
+
+
+class TrProductCategoryIn(BaseModel):
+    category_key: str = Field(min_length=1, max_length=64)
+    category_name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+
+class TrJurisdictionIn(BaseModel):
+    jurisdiction: str = Field(min_length=1, max_length=200)
+    role: Literal["primary", "secondary", "export_only"] = "primary"
+
+
+class TrCertificationBasisIn(BaseModel):
+    category_key: str = Field(min_length=1, max_length=64)
+    # Controlled list with a free-text fallback: TSO, ETSO, CS, Part,
+    # MIL-STD, STC, PMA and Standard are not interchangeable and the agent
+    # needs to know which is which. Where "Other", basis_identifier is used
+    # verbatim.
+    basis_type: Literal["TSO", "ETSO", "CS", "Part", "MIL-STD", "STC", "PMA", "Standard", "Other"]
+    basis_identifier: str = Field(min_length=1, max_length=200)
+    status: str = Field(default="", max_length=100)
+    held_since: str = Field(default="", max_length=32)
+
+
+class TrPlatformIn(BaseModel):
+    platform: str = Field(min_length=1, max_length=200)
+    platform_class: str = Field(default="", max_length=200)
+    relationship: Literal["shipping", "pursuing", "in_service", "sunsetting"] = "shipping"
+    programme_status: str = Field(default="", max_length=200)
+
+
+class TrStandardHeldIn(BaseModel):
+    standard_id: str = Field(min_length=1, max_length=100)
+    revision: str = Field(default="", max_length=32)
+    scope: str = Field(default="", max_length=500)
+    status: Literal["compliant", "certified", "in_progress", "lapsed", ""] = ""
+
+
+class TrSupplierIn(BaseModel):
+    supplier: str = Field(min_length=1, max_length=200)
+    what_they_supply: str = Field(default="", max_length=500)
+    criticality: Literal["single_source", "dual_sourced", "multi_source", ""] = ""
+
+
+class TrDomainIn(BaseModel):
+    domain: str = Field(min_length=1, max_length=200)
+
+
+class TrExclusionIn(BaseModel):
+    exclusion_type: Literal["platform_class", "jurisdiction", "domain", "category"]
+    value: str = Field(min_length=1, max_length=200)
+    reason: str = Field(default="", max_length=1000)
+
+
+class TrScopeStateItemOut(BaseModel):
+    """One envelope dimension, its status, and what its absence costs.
+
+    `consequence` is empty whenever `status` is "set". The missing-case
+    warning shown next to a populated dimension is the bug fixed in b4f3282
+    for Agent 5's /readiness -- it reads as an alarm about something that is
+    actually fine, and it trains the user to ignore the column."""
+    key: str
+    label: str
+    status: str  # "set" | "missing"
+    count: int
+    consequence: str
+
+
+class TrScopeStateOut(BaseModel):
+    operating_state: str  # scoped | partially_scoped | unscoped
+    statement: str  # the first-line statement the run itself will carry
+    items: list[TrScopeStateItemOut]
+
+
+class TechRegulationRunRequest(BaseModel):
+    """Everything the agent needs comes from the stored envelope; these are
+    optional execution tweaks only. Note there is no "force" or "confirm"
+    flag: a run is never blocked by incomplete scoping, it degrades and says
+    so."""
+    model: str | None = Field(default=None, description="Optional model override (e.g. claude-sonnet-5)")
+    max_searches: int | None = Field(default=None, ge=1, le=40)
+    research_rounds: int | None = Field(default=None, ge=1, le=4)
+
+
+class TrCandidateWorkOut(BaseModel):
+    candidate_key: str
+    driver: str
+    work_date: str | None
+    date_basis: str
+    date_absent_reason: str
+    applicability: dict
+    work_implied: str
+    work_implied_description: str
+    platform_relationship: str | None
+    classification: str
+    confidence: str
+    source: str
+    source_date: str
+    status: str
+    dismissal_reason: str
+    first_seen_run_id: str | None
+    last_seen_run_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TrCandidateWorkPatchRequest(BaseModel):
+    """Triage only. The evidence fields are the agent's output and are
+    refreshed by the next run, so they are not editable here -- an edit would
+    be silently overwritten, which is worse than not offering it."""
+    status: Literal["new", "under_review", "accepted", "dismissed"]
+    dismissal_reason: str = Field(default="", max_length=2000)
