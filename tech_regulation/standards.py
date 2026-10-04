@@ -129,15 +129,40 @@ and Decision agent.
 
 ## Key Insights Box Requirement
 
-Every report — except Report 1, which uses the Governing Insight (SCQA)
-structure instead — opens with a Key Insights box: 4 to 5 bullets pulling that
-specific report's most materially important findings, each tagged with its
-confidence level.
+Every report — except Report 1, which uses the Governing
+Insight (SCQA) structure instead — opens with a Key Insights box pulling that
+specific report's most materially important findings.
+
+**Maximum three insights. One sentence each. Each states its consequence.**
+
+- Three is a ceiling, not a target. Two well-evidenced insights beat three
+  where the third is padding.
+- One sentence means one sentence. A sentence with three semicolons is three
+  sentences.
+- Each insight states what follows from it — the consequence — not just the
+  observation.
+- Confidence and classification stay, as a short tag at the end in exactly
+  this form: "(Confidence: High — FACT)". Not as a clause.
+- Everything cut moves into the body. Nothing is lost; it stops being
+  presented as a headline.
+
+Where more than three candidates exist, prefer, in order:
+1. A finding that changes what the reader would do.
+2. A finding that contradicts what the reader likely believes.
+3. A finding that is dated, and therefore schedulable.
+4. A gap that blocks something — a missing input, an unserved objective, an
+   unavailable analysis.
+
+Prefer one insight that connects two findings over two insights that each state
+one.
 
 This is a scan-friendly summary of that report specifically, not a restatement
-of the whole program's governing insight. Keep each bullet to one sentence. Do
-not pad to reach 5 bullets if a report genuinely has fewer than 4 material
-findings — state fewer rather than manufacture filler.
+of the whole program's governing insight.
+
+The cap applies to the Key Insights box only. The Governing Insight (SCQA) is
+NOT capped: Situation / Complication / Question / Answer is four sentences by
+construction, and it is where synthesis across findings happens. SCQA reasons;
+key insights report. A cap on reporting does not constrain reasoning.
 
 ## Visual Requirement
 
@@ -239,7 +264,8 @@ in a primary source is OBSERVATION, not FACT.
 
 Technology sources: NASA, DARPA, DoD, DOE, NIST, national laboratories,
 university research, IEEE, SAE, AIAA, ASME, ASTM, industry research bodies,
-government-funded programmes, patent databases, peer-reviewed publications,
+government-funded programmes, patent filings and licensing reported in public
+sources, peer-reviewed publications,
 competitor technical and conference papers, SBIR/STTR, supplier technical
 papers, standards working groups, product announcements, job postings, M&A and
 investment activity.
@@ -401,7 +427,7 @@ GOOD:
 GOOD — opportunity rather than obligation:
   driver: EASA has stated a VTOL flight-recorder requirement is essential; no
     published standard exists (Source: EASA, Jun 2026). Two competitors have
-    filed in this area since 2025 (patent databases)
+    announced filings in this area since 2025 (company press releases)
   applicability: advanced air mobility — a monitored domain; no current product
     category
   work_implied: standards_participation — working group participation;
@@ -442,10 +468,13 @@ OEMs, tier suppliers, startups, universities, government bodies, research
 institutions, partnerships, joint ventures, investors, funding programmes.
 ONLY EVIDENCED RELATIONSHIPS. An edge on a map reads as verified fact.
 
-## Patent and IP landscape
-Filings, families, emerging assignees, clusters, activity trends, licensing.
-State where patent activity and commercial adoption diverge — a cluster of
-filings with no product is a signal of intent, and saying so is the finding.
+## Patent and IP evidence
+Scoped to what public sources can establish — see the patent evidence scope
+below. Filings, licensing, litigation and asserted IP positions reported in
+public sources; never filing counts, family sizes, assignee rankings,
+clustering or whitespace. State where reported patent activity and commercial
+adoption diverge — a filing with no product is a signal of intent, and saying
+so is the finding.
 
 ## R&D landscape
 Publications, government-funded programmes, SBIR/STTR, DARPA, NASA, DOE,
@@ -486,34 +515,83 @@ and should be reported as such rather than at equal weight.
 
 
 # ---------------------------------------------------------------------------
-# Agent 3 — patent search scope
+# Agent 3 — patent evidence scope
 #
-# prompt_draft_v2's open question 4 left patent depth unbounded. Resolved:
-# assignee-driven search alone misses the signal that matters most -- a
-# cluster of filings in the customer's own product category from an assignee
-# nobody has heard of is exactly what an assignee list cannot contain, so the
-# customer's categories are a search axis in their own right.
+# prompt_draft_v2's open question 4 left patent depth unbounded. Resolved in
+# two steps. First: assignee-driven search alone misses the signal that
+# matters most -- a filing in the customer's own product category from an
+# assignee nobody has heard of is exactly what an assignee list cannot
+# contain, so the customer's categories are a search axis in their own right.
+# Second (patent_and_summary_briefing.md, after the 4 Oct 2026 Arden run):
+# the agent has web search only, and the original requirement -- filings,
+# families, emerging assignees, clusters, activity trends -- cannot be met
+# from web search. An unmeetable requirement produces a hollow section or,
+# in a less careful agent, invented content. So the requirement is scoped to
+# reachable sources and the agent says what it cannot claim.
+#
+# KNOWN LIMITATION: full patent landscape analysis (counts, families,
+# assignee rankings, clustering, whitespace) needs a patent database -- EPO
+# OPS, USPTO PatentsView, Google Patents BigQuery or a commercial vendor.
+# That is a new dependency and a new cost and is deliberately out of scope.
+# Do not re-derive this; it is logged in tech_regulation_prompt_draft_v2.md.
 # ---------------------------------------------------------------------------
 
-PATENT_SEARCH_SCOPE = """\
-# Patent search scope
+PATENT_SEARCH_SCOPE = """# Patent evidence scope
 
-Patent search is bounded on three axes, and you state which you used:
+You have web search, not a patent database. Scope patent work to what public
+sources can establish.
+
+## What you research
+
+- Patent and application filings reported in trade press, company
+  announcements, press releases and investor materials
+- Licensing agreements, cross-licensing and patent-pool participation where
+  publicly announced
+- Patent litigation and opposition proceedings reported in public sources
+- IP positions asserted in company technical papers, conference papers and
+  standards contributions
+- Patent-analytics vendor reports where a specific finding and date can be
+  cited
+
+## What you do not claim
+
+- Filing counts, family sizes or assignee rankings. These require a patent
+  database and cannot be derived from web search
+- Technology clustering or whitespace analysis
+- Any statement about what has NOT been filed
+
+## Required statement
+
+Wherever patent material appears in a report, state, verbatim:
+
+"This is not a patent-database search. Patent findings below are limited to
+filings, licensing and litigation reported in public sources. Absence of a
+finding here is not evidence that no filing exists."
+
+## Search axes
+
+Search on three axes, and state which ran and which did not:
 
 1. By the customer's own PRODUCT CATEGORIES and the technologies they imply —
-   searched directly, independent of who the assignee is. A cluster of filings
-   in the customer's category from an assignee nobody has heard of is precisely
-   the signal worth catching, and an assignee-driven search misses it by
-   construction. Do this axis first.
-2. By ASSIGNEE, for suppliers on the watch list and for any competitors
-   identified during research.
+   searched directly, independent of who the assignee is. An unknown entrant
+   filing in the customer's category is precisely the signal worth catching,
+   and an assignee-driven search misses it by construction. Do this axis
+   first.
+2. By NAMED ASSIGNEE, for suppliers on the watch list and for any competitors
+   identified during research. UNAVAILABLE where supplier names are
+   anonymised or placeholders ("Vendor A" and the like) — say so, and do not
+   report the axis as performed. Competitors found in research can still be
+   searched; say which part of the axis ran.
 3. By the monitored TECHNOLOGY DOMAINS.
 
-Window: filings from the last five years, except where an older family is
-needed to establish a trend — label those as historical context.
+Window: filings reported from the last five years, except where an older
+filing is needed to establish context — label those as historical context.
 
-Report filings as evidence of investment and intent. A patent is not a working
-or available product, and the gap between the two is itself a finding.
+## Intent, not product
+
+A patent is evidence of investment and intent, not of a working or
+commercially available product. Always distinguish patent activity from
+commercial adoption; the gap between the two is itself a finding.
 """
 
 

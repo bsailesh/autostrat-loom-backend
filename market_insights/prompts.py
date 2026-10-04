@@ -173,10 +173,11 @@ def _opening_instruction(spec: ReportSpec) -> str:
             "a Key Insights box to this report; the SCQA opening replaces it."
         )
     return (
-        "OPENING: Begin with a **Key Insights** box — 4 to 5 one-sentence "
-        "bullets pulling THIS report's most materially important findings, each "
-        "tagged with its confidence level (High / Medium / Low). State fewer "
-        "than 4 rather than manufacture filler."
+        "OPENING: Begin with a **Key Insights** box — at most three bullets "
+        "(a ceiling, not a target) pulling THIS report's most materially "
+        "important findings. Each is one sentence, states its consequence, and "
+        "ends with a short tag such as (Confidence: High — FACT). Everything else "
+        "goes in the body."
     )
 
 

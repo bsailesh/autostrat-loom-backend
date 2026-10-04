@@ -325,7 +325,8 @@ external document without asking a follow-up question.
 
 ### Report 1 — Strategic opportunity and project universe
 
-Opens with key insights. Two clearly separated sections.
+Opens with key insights — at most three, one sentence each, each stating its
+consequence (Consulting-Grade Output Standard). Two clearly separated sections.
 
 **Committed projects** — from the roadmap. Columns: project, type, origin,
 status, effort remaining (by bucket and total), mandatory flag, evidence

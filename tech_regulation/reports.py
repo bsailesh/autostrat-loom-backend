@@ -139,7 +139,11 @@ REPORTS: list[ReportSpec] = [
             "A chronological view across the analysis window, with stage progression: "
             "research, prototype, pilot, demonstration, launch, adoption. Each entry "
             "carries its source and confidence. Forward-looking entries are labelled "
-            "FORECAST and never presented as fact."
+            "FORECAST and never presented as fact. Where patent material appears, give "
+            "the patent evidence scope's required statement verbatim -- this is not a "
+            "patent-database search -- and state which patent search axes ran and which "
+            "did not, naming axis 2 unavailable where supplier names are anonymised. "
+            "No filing counts, family sizes, assignee rankings or clustering."
         ),
         exhibit=(
             "An evolution timeline table with exactly these headers: "

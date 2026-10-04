@@ -122,14 +122,39 @@ highest published estimate will materially overstate reachable revenue."
 ## Key Insights Box Requirement
 
 Every report — except Report 1 / Executive Summary, which uses the Governing
-Insight (SCQA) structure instead — opens with a Key Insights box: 4 to 5 bullets
-pulling that specific report's most materially important findings, each tagged
-with its confidence level.
+Insight (SCQA) structure instead — opens with a Key Insights box pulling that
+specific report's most materially important findings.
+
+**Maximum three insights. One sentence each. Each states its consequence.**
+
+- Three is a ceiling, not a target. Two well-evidenced insights beat three
+  where the third is padding.
+- One sentence means one sentence. A sentence with three semicolons is three
+  sentences.
+- Each insight states what follows from it — the consequence — not just the
+  observation.
+- Confidence and classification stay, as a short tag at the end in exactly
+  this form: "(Confidence: High — FACT)". Not as a clause.
+- Everything cut moves into the body. Nothing is lost; it stops being
+  presented as a headline.
+
+Where more than three candidates exist, prefer, in order:
+1. A finding that changes what the reader would do.
+2. A finding that contradicts what the reader likely believes.
+3. A finding that is dated, and therefore schedulable.
+4. A gap that blocks something — a missing input, an unserved objective, an
+   unavailable analysis.
+
+Prefer one insight that connects two findings over two insights that each state
+one.
 
 This is a scan-friendly summary of that report specifically, not a restatement
-of the whole program's governing insight. Keep each bullet to one sentence. Do
-not pad to reach 5 bullets if a report genuinely has fewer than 4 material
-findings — state fewer rather than manufacture filler.
+of the whole program's governing insight.
+
+The cap applies to the Key Insights box only. The Governing Insight (SCQA) is
+NOT capped: Situation / Complication / Question / Answer is four sentences by
+construction, and it is where synthesis across findings happens. SCQA reasons;
+key insights report. A cap on reporting does not constrain reasoning.
 
 ## Visual Requirement
 
