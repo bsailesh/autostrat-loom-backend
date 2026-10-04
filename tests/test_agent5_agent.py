@@ -1,6 +1,7 @@
 """
 Tests for `strategy_synthesis/agent.py` -- the two-pass orchestration.
-No real Anthropic calls: `_call_pass1` and `_call_pass2_report` are mocked
+No real Anthropic calls: the streamed client call inside `_call_pass1` is
+mocked, as is `_call_pass2_report`
 directly (there is no existing test coverage for market_insights/agent.py's
 LLM calls to pattern-match, so this is this package's own testability seam).
 
@@ -17,7 +18,12 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-real")
 
 import pytest
 
-from strategy_synthesis.agent import Pass1ValidationError, StrategySynthesisAgent
+from strategy_synthesis.agent import (
+    Pass1ValidationError,
+    StrategySynthesisAgent,
+    UpstreamSummaryError,
+    _pass1_completeness_gaps,
+)
 from strategy_synthesis.brief import DecisionBrief, Objective
 from strategy_synthesis.compute import Bucket, Capacity, Dependency, Project, ProjectEffort, Scenario
 from strategy_synthesis.config import Settings
@@ -27,6 +33,30 @@ from strategy_synthesis.schemas import Pass1Candidate, Pass1DimensionScore, Pass
 
 def _settings():
     return Settings(anthropic_api_key="test-key-not-real", model="claude-opus-5")
+
+
+def _pass1_response(tool_input: dict, stop_reason: str = "tool_use", output_tokens: int = 9000) -> MagicMock:
+    """A streamed Pass 1 response carrying one tool_use block."""
+    return MagicMock(
+        content=[_tool_use_block("emit_pass1_output", tool_input)],
+        stop_reason=stop_reason,
+        usage=MagicMock(output_tokens=output_tokens),
+    )
+
+
+def _streaming(*responses: MagicMock) -> MagicMock:
+    """Stands in for `client.messages.stream`, which is used as a context
+    manager and read via `get_final_message()` -- one entry per attempt."""
+
+    def _one(response):
+        ctx = MagicMock()
+        ctx.__enter__ = MagicMock(
+            return_value=MagicMock(get_final_message=MagicMock(return_value=response))
+        )
+        ctx.__exit__ = MagicMock(return_value=False)
+        return ctx
+
+    return MagicMock(side_effect=[_one(r) for r in responses])
 
 
 def _tool_use_block(tool_name: str, input: dict) -> MagicMock:
@@ -100,13 +130,12 @@ class TestPass1RetryOnceThenFail:
         brief = _bottleneck_brief()
         expected = _pass1_output_for(brief)
 
-        tool_block = _tool_use_block("emit_pass1_output", expected.model_dump())
-        response = MagicMock(content=[tool_block], stop_reason="tool_use")
+        response = _pass1_response(expected.model_dump())
 
-        with patch.object(agent._client.messages, "create", return_value=response) as create:
-            result = agent._call_pass1("brief text", {})
+        with patch.object(agent._client.messages, "stream", _streaming(response)) as stream:
+            result = agent._call_pass1(brief, "brief text", {})
 
-        assert create.call_count == 1
+        assert stream.call_count == 1
         assert result.project_scores[0].project_key == expected.project_scores[0].project_key
 
     def test_malformed_first_response_retries_once_then_succeeds(self):
@@ -114,44 +143,127 @@ class TestPass1RetryOnceThenFail:
         brief = _bottleneck_brief()
         expected = _pass1_output_for(brief)
 
-        bad_block = _tool_use_block("emit_pass1_output", {"candidates": "not a list"})
-        bad_response = MagicMock(content=[bad_block], stop_reason="tool_use")
-        good_block = _tool_use_block("emit_pass1_output", expected.model_dump())
-        good_response = MagicMock(content=[good_block], stop_reason="tool_use")
+        bad = _pass1_response({"candidates": "not a list"})
+        good = _pass1_response(expected.model_dump())
 
-        with patch.object(agent._client.messages, "create", side_effect=[bad_response, good_response]) as create:
-            result = agent._call_pass1("brief text", {})
+        with patch.object(agent._client.messages, "stream", _streaming(bad, good)) as stream:
+            result = agent._call_pass1(brief, "brief text", {})
 
-        assert create.call_count == 2
-        # the retry prompt must carry the validation error forward
-        second_call_kwargs = create.call_args_list[1].kwargs
-        retry_prompt = second_call_kwargs["messages"][0]["content"]
+        assert stream.call_count == 2
+        # the retry prompt must carry the rejection reason forward
+        retry_prompt = stream.call_args_list[1].kwargs["messages"][0]["content"]
         assert "failed schema validation" in retry_prompt
         assert result.project_scores[0].project_key == expected.project_scores[0].project_key
 
     def test_two_malformed_responses_raise_with_both_attempts_surfaced(self):
         agent = StrategySynthesisAgent(_settings())
+        bad = _pass1_response({"candidates": "not a list"})
 
-        bad_block = _tool_use_block("emit_pass1_output", {"candidates": "not a list"})
-        bad_response = MagicMock(content=[bad_block], stop_reason="tool_use")
-
-        with patch.object(agent._client.messages, "create", return_value=bad_response) as create:
+        with patch.object(agent._client.messages, "stream", _streaming(bad, bad)) as stream:
             with pytest.raises(Pass1ValidationError) as exc_info:
-                agent._call_pass1("brief text", {})
+                agent._call_pass1(_bottleneck_brief(), "brief text", {})
 
-        assert create.call_count == 2
-        assert "failed schema validation twice" in str(exc_info.value)
+        assert stream.call_count == 2
+        assert "rejected twice" in str(exc_info.value)
+        assert "failed schema validation" in str(exc_info.value)
 
     def test_no_tool_use_block_at_all_is_also_retried_then_raises(self):
         agent = StrategySynthesisAgent(_settings())
-        text_only_response = MagicMock(content=[MagicMock(type="text", text="I refuse.")], stop_reason="end_turn")
+        text_only = MagicMock(
+            content=[MagicMock(type="text", text="I refuse.")],
+            stop_reason="end_turn",
+            usage=MagicMock(output_tokens=12),
+        )
 
-        with patch.object(agent._client.messages, "create", return_value=text_only_response) as create:
+        with patch.object(agent._client.messages, "stream", _streaming(text_only, text_only)) as stream:
             with pytest.raises(Pass1ValidationError) as exc_info:
-                agent._call_pass1("brief text", {})
+                agent._call_pass1(_bottleneck_brief(), "brief text", {})
 
-        assert create.call_count == 2
+        assert stream.call_count == 2
         assert "no matching tool_use block" in str(exc_info.value)
+
+
+class TestPass1RejectsStructurallyEmptyOutput:
+    """The Arden failure: a Pass 1 call that returns HTTP 200 with a tool_use
+    block whose input is a coerced fragment of a truncated response. Every
+    Pass1Output field defaults to [], so the fragment parses cleanly into an
+    output with no scores at all -- which used to flow into compute, produce
+    an empty composite set, and leave every downstream report inert."""
+
+    def test_truncated_response_is_rejected_before_it_is_ever_parsed(self):
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+
+        # exactly what the API returned for the nine-project Arden brief when
+        # generation hit the ceiling mid-tool-input
+        truncated = _pass1_response({"context": {}}, stop_reason="max_tokens", output_tokens=16000)
+        good = _pass1_response(_pass1_output_for(brief).model_dump())
+
+        with patch.object(agent._client.messages, "stream", _streaming(truncated, good)) as stream:
+            result = agent._call_pass1(brief, "brief text", {})
+
+        assert stream.call_count == 2
+        retry_prompt = stream.call_args_list[1].kwargs["messages"][0]["content"]
+        assert "max_tokens" in retry_prompt and "truncated fragment" in retry_prompt
+        assert len(result.project_scores) == len(brief.projects)
+
+    def test_empty_but_schema_valid_output_no_longer_passes_validation(self):
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+        empty = _pass1_response({"candidates": [], "project_scores": []})
+
+        with patch.object(agent._client.messages, "stream", _streaming(empty, empty)):
+            with pytest.raises(Pass1ValidationError) as exc_info:
+                agent._call_pass1(brief, "brief text", {})
+
+        message = str(exc_info.value)
+        assert "structurally incomplete" in message
+        assert "0 of 2 committed projects scored" in message
+        assert "P-01" in message and "P-05" in message
+
+    def test_a_partially_scored_portfolio_is_rejected_too(self):
+        """Not just the zero case: eight of nine scored is the same class of
+        wrong, and compute would happily rank the eight."""
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+        partial = _pass1_output_for(brief).model_dump()
+        partial["project_scores"] = partial["project_scores"][:1]  # P-01 only
+        response = _pass1_response(partial)
+
+        with patch.object(agent._client.messages, "stream", _streaming(response, response)):
+            with pytest.raises(Pass1ValidationError) as exc_info:
+                agent._call_pass1(brief, "brief text", {})
+
+        assert "1 of 2 committed projects scored" in str(exc_info.value)
+        assert "P-05" in str(exc_info.value)
+
+    def test_a_project_missing_one_criterion_is_rejected_before_compute_raises(self):
+        """compute_composite_scores raises on this, but as an unretryable
+        crash mid-run; Pass 1 should catch it while a corrective retry is
+        still possible."""
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+        payload = _pass1_output_for(brief).model_dump()
+        payload["project_scores"][1]["dimensions"] = payload["project_scores"][1]["dimensions"][:1]
+        response = _pass1_response(payload)
+
+        with patch.object(agent._client.messages, "stream", _streaming(response, response)):
+            with pytest.raises(Pass1ValidationError) as exc_info:
+                agent._call_pass1(brief, "brief text", {})
+
+        assert "has no score for criterion effort" in str(exc_info.value)
+
+    def test_a_complete_output_passes_unchanged(self):
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+        expected = _pass1_output_for(brief)
+
+        with patch.object(agent._client.messages, "stream", _streaming(_pass1_response(expected.model_dump()))):
+            result = agent._call_pass1(brief, "brief text", {})
+
+        assert {ps.project_key for ps in result.project_scores} == {p.project_key for p in brief.projects}
+        assert _pass1_completeness_gaps(result, brief) == []
+
 
 
 class TestTwoPassBoundary:
@@ -250,10 +362,52 @@ class TestTwoPassBoundary:
 
 
 class TestSummarizeUpstreamAgent:
+    @staticmethod
+    def _response(text: str, stop_reason: str = "end_turn", output_tokens: int = 2000) -> MagicMock:
+        blocks = [MagicMock(type="text", text=text)] if text else []
+        return MagicMock(
+            content=blocks, stop_reason=stop_reason, usage=MagicMock(output_tokens=output_tokens)
+        )
+
     def test_calls_claude_and_returns_text(self):
         agent = StrategySynthesisAgent(_settings())
-        response = MagicMock(content=[MagicMock(type="text", text="summary text")])
-        with patch.object(agent._client.messages, "create", return_value=response) as create:
+        with patch.object(
+            agent._client.messages, "stream", _streaming(self._response("summary text"))
+        ) as stream:
             result = agent.summarize_upstream_agent("market-insights", "very long report text")
         assert result == "summary text"
-        assert create.call_count == 1
+        assert stream.call_count == 1
+
+    def test_truncated_summary_raises_instead_of_being_handed_to_pass1(self):
+        """A summary cut off at the ceiling drops exactly the cited evidence
+        Pass 1 is supposed to reason from, and nothing downstream can tell."""
+        agent = StrategySynthesisAgent(_settings())
+        truncated = self._response("half a summ", stop_reason="max_tokens", output_tokens=32000)
+
+        with patch.object(agent._client.messages, "stream", _streaming(truncated)):
+            with pytest.raises(UpstreamSummaryError) as exc_info:
+                agent.summarize_upstream_agent("market-insights", "x" * 154_379)
+
+        assert "max_tokens" in str(exc_info.value)
+        assert "32000-token ceiling" in str(exc_info.value)
+
+    def test_empty_summary_raises(self):
+        """What Arden's 154k-char pack actually did at the old 4000-token
+        ceiling: stop_reason=max_tokens with no text block at all, because
+        thinking consumed the whole budget first."""
+        agent = StrategySynthesisAgent(_settings())
+        empty = self._response("", stop_reason="max_tokens", output_tokens=4000)
+
+        with patch.object(agent._client.messages, "stream", _streaming(empty)):
+            with pytest.raises(UpstreamSummaryError):
+                agent.summarize_upstream_agent("market-insights", "x" * 154_379)
+
+    def test_whitespace_only_summary_raises(self):
+        agent = StrategySynthesisAgent(_settings())
+        blank = self._response("   \n\n  ", stop_reason="end_turn", output_tokens=6)
+
+        with patch.object(agent._client.messages, "stream", _streaming(blank)):
+            with pytest.raises(UpstreamSummaryError) as exc_info:
+                agent.summarize_upstream_agent("market-insights", "report")
+
+        assert "came back empty" in str(exc_info.value)

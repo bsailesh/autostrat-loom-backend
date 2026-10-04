@@ -17,7 +17,13 @@ no FastAPI. `agent.py`'s `StrategySynthesisAgent.run()` takes a
 future router assembles both from the database and persists the result.
 """
 
-from strategy_synthesis.agent import AgentRunResult, Pass1ValidationError, Report, StrategySynthesisAgent
+from strategy_synthesis.agent import (
+    AgentRunResult,
+    Pass1ValidationError,
+    Report,
+    StrategySynthesisAgent,
+    UpstreamSummaryError,
+)
 from strategy_synthesis.brief import DecisionBrief
 from strategy_synthesis.compute import (
     Bucket,
@@ -49,6 +55,7 @@ from strategy_synthesis.compute import (
 __all__ = [
     "AgentRunResult",
     "Pass1ValidationError",
+    "UpstreamSummaryError",
     "Report",
     "StrategySynthesisAgent",
     "DecisionBrief",
