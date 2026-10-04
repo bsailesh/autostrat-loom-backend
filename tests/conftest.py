@@ -58,6 +58,33 @@ def _pin_db_override(request):
             app.dependency_overrides.pop(get_db, None)
 
 
+# KNOWN GAP (logged 2026-10-03, not scheduled): this guard catches one half
+# of the collection-order problem and not the other.
+#
+# It fails a module that builds a TestClient(app) without `override_get_db`,
+# because that module's requests would run against whatever database another
+# module left in app.dependency_overrides. But a module that assigns a
+# SERVICE-LEVEL SessionFactory at import time -- e.g.
+# `app.tech_regulation_service.SessionFactory = TestingSessionLocal`, which
+# is how a background task reaches the test database -- has the identical
+# problem and gets no warning at all: whichever module imported last wins for
+# the whole session, and the losers' background tasks write to a database
+# their assertions never read.
+#
+# That bug was hit for real on 2026-10-03 when a second module needed its own
+# factory behind tech_regulation_service. It cost eight failures in each
+# file order, in symmetrical sets, and passed in isolation either way. The
+# two modules now pin it per test in their own autouse fixtures.
+#
+# Generalising the guard would mean detecting a module-level assignment to
+# any `*_service.SessionFactory` -- awkward, because by collection time the
+# assignment has already happened and the original value is gone, so the
+# check probably has to compare each service module's SessionFactory against
+# app.database.SessionLocal and fail if it has been rebound outside a
+# fixture. Worth doing before the next service module with its own factory
+# arrives, since it will hit this again.
+
+
 def pytest_collection_modifyitems(session, config, items):
     """Fail loudly if a module uses TestClient(app) without opting into the
     override convention above, instead of silently running its requests
