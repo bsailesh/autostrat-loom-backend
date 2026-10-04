@@ -124,6 +124,18 @@ def render_computed_text(computed: ComputedResults) -> str:
     return json.dumps(_to_jsonable(computed), indent=2, default=str)
 
 
+# KNOWN GAP (logged 2026-10-03, not scheduled): _pass1_completeness_gaps
+# below checks that every committed project is scored, but not the converse --
+# a project_scores entry whose project_key is *not* a committed project passes
+# unchallenged, and compute_composite_scores will rank it alongside the real
+# ones. The case that matters is a user-proposed U-xx project being scored:
+# standards.TWO_POPULATIONS makes those candidates only, never ranked (they
+# have no effort estimate, so they cannot be capacity-checked either), and
+# nothing currently enforces that at the Pass 1 boundary. Fix is a third check
+# here for keys absent from brief.projects, but it needs a decision first on
+# whether an unknown key should fail the pass or be dropped with a warning --
+# failing is consistent with the checks below, dropping is more forgiving of
+# a model that scores a proposal it was asked only to list.
 def _pass1_completeness_gaps(output: Pass1Output, brief: DecisionBrief) -> list[str]:
     """Structural completeness of Pass 1's scores, checked against the brief
     it was given. A schema-valid payload can still be wrong in a way the

@@ -416,6 +416,16 @@ def persist_candidates(
 # ---------------------------------------------------------------------------
 
 
+# KNOWN GAP (logged 2026-10-03, not scheduled): nothing here persists what
+# the model actually did. AgentRun carries id/tenant/agent_type/subject/
+# status/error/created_at and no usage columns, so stop_reason, input/output
+# tokens and which model served a run exist only in the process logs that
+# strategy_synthesis.agent writes. That is what made the 2026-10-02 Arden run
+# undiagnosable after the fact -- an empty Pass 1 payload with no record of
+# whether generation had been truncated -- and it also means per-run cost is
+# unanswerable. Fix is a usage table (or columns on AgentRun) written from
+# the response objects, which needs the agent to return usage out of run()
+# rather than only logging it: AgentRunResult has no field for it today.
 def execute_run(
     *,
     run_id: str,
