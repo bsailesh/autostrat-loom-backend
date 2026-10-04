@@ -45,7 +45,57 @@ its schema exactly. No composites, no rankings, no capacity utilisation --
 those are computed after this pass, from what you emit here."""
 
 
-def pass1_user_prompt(brief_text: str, upstream_text_by_agent: dict[str, str]) -> str:
+def _structured_candidate_section(structured_candidates: list[dict] | None) -> str:
+    """Agent 3's candidate work, handed to Pass 1 pre-structured.
+
+    These arrive as rows from `tr_candidate_work`, not parsed out of Tech &
+    Regulation's report prose -- that agent generates them structurally
+    before it narrates them, so there is no second parser of an undocumented
+    contract here. Pass 1's own discovery from upstream markdown is
+    unchanged and runs alongside this; the two populations stay
+    distinguishable because only these carry a driver and a date.
+    """
+    if not structured_candidates:
+        return ""
+
+    rows = json.dumps(structured_candidates, indent=2, default=str)
+    return f"""
+## Pre-structured candidate work (from Tech & Regulation)
+
+These are already-structured candidate work items from the selected upstream
+Tech & Regulation run. They are NOT prose to interpret: each one already has a
+named driver, a date (or a stated reason there is none), its applicability, and
+the work it implies.
+
+{rows}
+
+Carry each of these into `candidates` using its own key verbatim (TR-xx), and
+populate `driver`, `work_date`, `date_basis` and `source_candidate_key` from the
+row. Do not renumber them, do not merge them with each other, and do not
+re-derive their fields from the report text -- the row is authoritative and the
+prose is a narration of it.
+
+Set `origin` to "Tech & Regulation — candidate work <key>" so the two
+populations remain distinguishable: a candidate derived from structured
+candidate work carries its driver and date, one you inferred from prose does
+not. Say which is which where it matters.
+
+Score and rank these exactly as you would any other candidate -- their
+`evidence_strength_rank` is yours to assign. Tech & Regulation deliberately
+supplies no effort, duration, cost or priority, because it cannot see capacity;
+that assessment is this pass's job and the compute that follows it.
+
+A candidate work item you judge not worth carrying forward should still appear,
+with your reasoning in `evidence_summary`. Dropping it silently would make it
+look as though Tech & Regulation never surfaced it.
+"""
+
+
+def pass1_user_prompt(
+    brief_text: str,
+    upstream_text_by_agent: dict[str, str],
+    structured_candidates: list[dict] | None = None,
+) -> str:
     upstream_sections = "\n\n".join(
         f"### Upstream agent: {agent_type}\n\n{text}" for agent_type, text in upstream_text_by_agent.items()
     ) or "(No upstream agent runs available yet -- discover candidates and score from the brief alone, and say so.)"
@@ -58,7 +108,7 @@ def pass1_user_prompt(brief_text: str, upstream_text_by_agent: dict[str, str]) -
 ## Upstream agent reports
 
 {upstream_sections}
-
+{_structured_candidate_section(structured_candidates)}
 Produce the Pass 1 structured output: candidates, per-project dimension
 scores (with objectives_served), criterion substitutions, and inferred
 dependencies."""

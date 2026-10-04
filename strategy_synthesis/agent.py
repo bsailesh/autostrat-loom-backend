@@ -235,10 +235,14 @@ class StrategySynthesisAgent:
     # -----------------------------------------------------------------
 
     def _call_pass1(
-        self, brief: DecisionBrief, brief_text: str, upstream_text_by_agent: dict[str, str]
+        self,
+        brief: DecisionBrief,
+        brief_text: str,
+        upstream_text_by_agent: dict[str, str],
+        structured_candidates: list[dict] | None = None,
     ) -> Pass1Output:
         system = pass1_system_prompt()
-        user_prompt = pass1_user_prompt(brief_text, upstream_text_by_agent)
+        user_prompt = pass1_user_prompt(brief_text, upstream_text_by_agent, structured_candidates)
 
         tool_name = "emit_pass1_output"
         tool_def = {
@@ -344,10 +348,22 @@ class StrategySynthesisAgent:
     # Orchestration
     # -----------------------------------------------------------------
 
-    def run(self, brief: DecisionBrief, upstream_text_by_agent: dict[str, str]) -> AgentRunResult:
+    def run(
+        self,
+        brief: DecisionBrief,
+        upstream_text_by_agent: dict[str, str],
+        structured_candidates: list[dict] | None = None,
+    ) -> AgentRunResult:
+        """`structured_candidates` is Agent 3's candidate work, read as rows
+        from tr_candidate_work by the service layer and handed to Pass 1
+        pre-structured. Optional and defaulted: Pass 1's own discovery from
+        upstream report markdown is unchanged and runs whether or not any
+        are supplied."""
         brief_text = render_brief_text(brief)
 
-        pass1_output = self._call_pass1(brief, brief_text, upstream_text_by_agent)
+        pass1_output = self._call_pass1(
+            brief, brief_text, upstream_text_by_agent, structured_candidates
+        )
 
         computed = self._compute(brief, pass1_output)
         computed_text = render_computed_text(computed)

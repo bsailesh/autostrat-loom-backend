@@ -44,10 +44,25 @@ def override_get_db():
         db.close()
 
 
-# execute_run's background task opens its own session via SessionFactory,
-# since the request-scoped one is closed by the time the task runs -- point
-# it at the test engine or it silently hits the real ./loom.db.
-tech_regulation_service.SessionFactory = TestingSessionLocal
+@pytest.fixture(autouse=True)
+def _pin_tech_regulation_session_factory():
+    """execute_run's background task opens its own session via
+    SessionFactory, since the request-scoped one is closed by the time the
+    task runs. Pinned per test and restored afterwards, NOT assigned at
+    module import: more than one test module needs its own database behind
+    this global, and an import-time assignment makes whichever module
+    imported last win for the whole session -- the same collection-order
+    trap conftest.py's `_pin_db_override` exists to prevent for
+    app.dependency_overrides. Caught by running the suite in reversed file
+    order, which is why the briefing asks for it."""
+    previous = tech_regulation_service.SessionFactory
+    tech_regulation_service.SessionFactory = TestingSessionLocal
+    try:
+        yield
+    finally:
+        tech_regulation_service.SessionFactory = previous
+
+
 client = TestClient(app)
 
 ADMIN_HEADERS = {"X-Admin-Key": "test-admin-key"}

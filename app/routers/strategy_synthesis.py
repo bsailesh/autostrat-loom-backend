@@ -46,6 +46,7 @@ from app.models import (
     StrategyConfig,
     StrategyRule,
     Tenant,
+    TrCandidateWork,
 )
 from app.schemas import (
     AgentReportOut,
@@ -57,6 +58,7 @@ from app.schemas import (
     CapacityBucketOut,
     CapacityBucketsUpsertRequest,
     DiscoveredCandidateOut,
+    LinkedCandidateWorkOut,
     EffortBandOut,
     FrameworkResponse,
     FrameworkUpsertRequest,
@@ -882,6 +884,45 @@ def get_readiness(
 _CANDIDATE_STATUSES = {"new", "under_review", "scoped", "dismissed"}
 
 
+def _link_candidate_work(db: Session, tenant: Tenant, rows: list[DiscoveredCandidate]) -> list[dict]:
+    """Attach each candidate's originating Tech & Regulation item, where it
+    has one, read live from tr_candidate_work.
+
+    The join key is the candidate_key itself: Pass 1 carries a structured
+    item's TR-xx key through verbatim, so no prefix convention or parsing is
+    needed. A candidate Pass 1 inferred from prose has no matching row and
+    gets None, which is how the UI tells the two populations apart.
+
+    Read live rather than copied, which is the point: a Tech & Regulation
+    re-run that corrects an effective date is reflected here immediately,
+    with nothing to refresh and nowhere for a stale copy to live. The two
+    statuses are shown side by side on purpose -- a finding dismissed
+    upstream whose candidate is still active here is a disagreement between
+    two judgements, and hiding it would be hiding information.
+    """
+    upstream = {
+        row.candidate_key: row for row in scoped_query(db, TrCandidateWork, tenant).all()
+    }
+    out: list[dict] = []
+    for row in rows:
+        linked = upstream.get(row.candidate_key)
+        payload = DiscoveredCandidateOut.model_validate(row).model_dump()
+        payload["linked_candidate_work"] = (
+            None
+            if linked is None
+            else LinkedCandidateWorkOut(
+                candidate_key=linked.candidate_key,
+                driver=linked.driver,
+                work_date=linked.work_date,
+                date_basis=linked.date_basis,
+                status=linked.status,
+                dismissal_reason=linked.dismissal_reason,
+            ).model_dump()
+        )
+        out.append(payload)
+    return out
+
+
 @router.get("/candidates", response_model=list[DiscoveredCandidateOut])
 def list_candidates(
     tenant: Tenant = Depends(get_current_tenant),
@@ -890,7 +931,12 @@ def list_candidates(
     """Live candidate state -- Report 7's own text is frozen at run time, so
     the "what to scope next" UI reads from here, not from parsed report
     prose, to reflect actions taken since that run."""
-    return scoped_query(db, DiscoveredCandidate, tenant).order_by(DiscoveredCandidate.created_at.asc()).all()
+    rows = (
+        scoped_query(db, DiscoveredCandidate, tenant)
+        .order_by(DiscoveredCandidate.created_at.asc())
+        .all()
+    )
+    return _link_candidate_work(db, tenant, rows)
 
 
 @router.patch("/candidates/{key}", response_model=DiscoveredCandidateOut)

@@ -408,6 +408,23 @@ class CandidateScopeRequest(BaseModel):
     effort_by_bucket: dict[str, float] = Field(min_length=1)
 
 
+class LinkedCandidateWorkOut(BaseModel):
+    """The Tech & Regulation candidate work item an Agent 5 candidate was
+    derived from, read live from tr_candidate_work rather than copied.
+
+    Its `status` is independent of the Agent 5 candidate's: this one answers
+    "is this finding real and relevant", the other answers "would we scope
+    this as a project". A finding dismissed in Tech & Regulation whose
+    candidate is still active in Agent 5 is a disagreement between two
+    judgements, and the UI shows it rather than hiding it."""
+    candidate_key: str
+    driver: str
+    work_date: str | None
+    date_basis: str
+    status: str
+    dismissal_reason: str
+
+
 class DiscoveredCandidateOut(BaseModel):
     id: str
     candidate_key: str
@@ -421,6 +438,9 @@ class DiscoveredCandidateOut(BaseModel):
     dismissal_reason: str
     created_at: datetime
     updated_at: datetime
+    # Present only for candidates carried from structured candidate work.
+    # None for prose-derived ones, which is how the UI tells them apart.
+    linked_candidate_work: LinkedCandidateWorkOut | None = None
 
     model_config = {"from_attributes": True}
 
