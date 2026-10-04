@@ -50,6 +50,7 @@ TEMPLATE_PATH = pathlib.Path(__file__).parent / "template.docx"
 AGENT_LABELS = {
     "market-insights": "Market Insights",
     "strategy-synthesis": "Strategy Synthesis",
+    "tech-regulation": "Technology & Regulation",
 }
 
 

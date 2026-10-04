@@ -727,3 +727,268 @@ class AuditLog(Base):
     input_summary: Mapped[str] = mapped_column(Text)
     output_summary: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ---------------------------------------------------------------------------
+# Agent 3 (Technology & Regulatory Intelligence) — the applicability envelope
+#
+# Eight scoping tables plus candidate work. Per
+# tech_regulation_scoping_input_spec.md Part 5, three of these fields are
+# wanted by more than one agent (product categories, platforms, supplier
+# watch list) and a shared Product Profile is the eventual shape -- but they
+# are built here as Agent 3's own tables deliberately, so the shared
+# abstraction is extracted once two agents actually use it rather than
+# designed before anything flows through it. The column names below are the
+# names that spec uses, so a later extraction is a move, not a rename.
+#
+# `agent_runs` and `agent_reports` are reused as-is via the `agent_type`
+# discriminator ("tech-regulation") -- no new columns on either, so
+# Base.metadata.create_all is sufficient to deploy all of this.
+# ---------------------------------------------------------------------------
+
+
+class TrProductCategory(Base):
+    """What the customer makes, in their own words. The field that decides
+    whether a run is about this customer at all: without it every other
+    dimension has nothing to attach findings to, and the run degrades to an
+    industry survey."""
+    __tablename__ = "tr_product_categories"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "category_key", name="uq_tr_product_category_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    category_key: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "EMA-FIN"
+    category_name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrJurisdiction(Base):
+    """Where the product is sold, certified or operated. `role` is load-bearing:
+    a regulator in a primary market and one in an export-only market produce
+    findings of different weight, and the agent says which."""
+    __tablename__ = "tr_jurisdictions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "jurisdiction", name="uq_tr_jurisdiction_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    jurisdiction: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "European Union"
+    role: Mapped[str] = mapped_column(String, default="primary")  # primary | secondary | export_only
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrCertificationBasis(Base):
+    """What each product category is approved under -- the highest-leverage
+    field in the envelope, and the one that decides whether a regulatory
+    finding is intelligence or a newsletter.
+
+    `basis_type` is a controlled list with a free-text fallback (TSO, ETSO,
+    CS, Part, MIL-STD, STC, PMA, Standard, Other). These are not
+    interchangeable and the agent needs to know which is which; where
+    `Other`, `basis_identifier` is used verbatim. Not a DB enum -- this file
+    has no DB-level enums or checks anywhere, and the vocabulary is validated
+    at the endpoint.
+
+    One category carries several bases (Arden's utility actuation holds both
+    TSO-C196b and a 14 CFR Part 25 installation approval), so the natural key
+    is the triple, not the category."""
+    __tablename__ = "tr_certification_basis"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "category_key", "basis_type", "basis_identifier",
+            name="uq_tr_certification_basis_tenant_key",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    # Not an FK to tr_product_categories.category_key: that column is unique
+    # per tenant but not a primary key, and the rest of this file keys
+    # customer-supplied vocabularies by string the same way (ProjectEffort ->
+    # bucket_key). Referential integrity is the endpoint's job.
+    category_key: Mapped[str] = mapped_column(String, nullable=False)
+    basis_type: Mapped[str] = mapped_column(String, nullable=False)
+    basis_identifier: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "TSO-C196b"
+    status: Mapped[str] = mapped_column(String, default="")  # e.g. qualified | approved | installed on
+    # String, not DateTime: displayed and reasoned about by the model, never
+    # computed against -- the Asset.eol_date convention, not BriefFile.as_of's.
+    held_since: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrPlatform(Base):
+    """What the product goes on. `relationship` changes how a finding reads
+    and must survive to the output: a regulatory change on a platform the
+    customer ships is a cost against existing revenue, the same change on one
+    they are pursuing is an entry condition on a design-in window."""
+    __tablename__ = "tr_platforms"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "platform", name="uq_tr_platform_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    platform: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "Narrowbody commercial"
+    platform_class: Mapped[str] = mapped_column(String, default="")  # e.g. "Part 25 transport"
+    # Shadows the module-level sqlalchemy `relationship` import inside this
+    # class body only, which is safe because this class declares none. Named
+    # for the scoping spec rather than renamed to avoid the shadow, since the
+    # agent's prompts, the API payloads and the spec all call it this.
+    relationship: Mapped[str] = mapped_column(String, default="shipping")  # shipping | pursuing | in_service | sunsetting
+    programme_status: Mapped[str] = mapped_column(String, default="")  # e.g. "design-in window"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrStandardHeld(Base):
+    """Standards the customer is compliant with or certified against. A
+    revision to one of these is dated candidate work; a revision to one they
+    do not hold is background, and is reported as such rather than at equal
+    weight."""
+    __tablename__ = "tr_standards_held"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "standard_id", "revision", name="uq_tr_standard_held_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    standard_id: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "DO-160"
+    revision: Mapped[str] = mapped_column(String, default="")  # e.g. "G"; empty where none is issued
+    scope: Mapped[str] = mapped_column(Text, default="")  # e.g. "Environmental qualification"
+    status: Mapped[str] = mapped_column(String, default="")  # compliant | certified | in_progress | lapsed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrSupplier(Base):
+    """Suppliers whose developments and discontinuations matter. Shared with
+    Product Sustainment, which needs the same list for obsolescence
+    monitoring (scoping spec Part 5). Watch-list suppliers are reported even
+    when a development is minor; others only when significant."""
+    __tablename__ = "tr_suppliers"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "supplier", name="uq_tr_supplier_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    supplier: Mapped[str] = mapped_column(String, nullable=False)
+    what_they_supply: Mapped[str] = mapped_column(Text, default="")
+    criticality: Mapped[str] = mapped_column(String, default="")  # single_source | dual_sourced | multi_source
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrDomain(Base):
+    """Technology domains to monitor, from the per-industry list plus free
+    text. Without any, domains are inferred from product categories, which
+    works but misses adjacencies the customer watches deliberately."""
+    __tablename__ = "tr_domains"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "domain", name="uq_tr_domain_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    domain: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "Advanced air mobility"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrExclusion(Base):
+    """What not to report. A scoping input that can only add scope produces
+    noise. Exclusions are stated in the output -- "excluded at your
+    direction" -- never silently applied, because an exclusion that turns out
+    to be wrong is itself a finding."""
+    __tablename__ = "tr_exclusions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "exclusion_type", "value", name="uq_tr_exclusion_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    exclusion_type: Mapped[str] = mapped_column(String, nullable=False)  # platform_class | jurisdiction | domain | category
+    value: Mapped[str] = mapped_column(String, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class TrCandidateWork(Base):
+    """One piece of work a finding implies -- this agent's contract with
+    Agent 5, and the reason it is a table rather than prose inside a report.
+    Agent 5 reads these rows directly, so there is no second parser of an
+    undocumented contract (the failure this codebase has already hit with the
+    Word export markdown parser and with Agent 5's own report consumption).
+
+    This row is the single home of `driver` and `work_date`. Agent 5's linked
+    DiscoveredCandidate deliberately stores neither and reaches them through
+    the `candidate_key` carried in its `origin`, so a corrected date here is
+    the corrected date everywhere, with nothing to refresh and nowhere for a
+    stale copy to live.
+
+    Note what is absent and must stay absent: no effort, duration, cost,
+    reach, priority or rank. This agent cannot see the customer's capacity or
+    what competes for it, so naming the work is its job and sizing it is
+    Agent 5's. The omission is structural, not just a prompt instruction.
+
+    Persistence mirrors DiscoveredCandidate -- additive, keyed by
+    `candidate_key`, refreshing evidence fields on an existing key, never
+    resurrecting a dismissed item as new. Unlike DiscoveredCandidate it
+    carries `last_seen_run_id` as well as `first_seen_run_id`: Agent 5 reads
+    "the candidate work for this upstream run", which has to include items a
+    run re-surfaced and not only ones it discovered, or a corrected item
+    would vanish from the run that corrected it."""
+    __tablename__ = "tr_candidate_work"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "candidate_key", name="uq_tr_candidate_work_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    candidate_key: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "TR-01"
+
+    # -- the five required fields ------------------------------------------
+    # The named regulation, standard revision, supplier notice or development,
+    # with its identifier.
+    driver: Mapped[str] = mapped_column(Text, nullable=False)
+    # String, not DateTime: these are external dates of mixed precision
+    # ("14 Mar 2028", "Q3 FY28", "2028") that are read and clustered by the
+    # model, not computed against -- the Asset.eol_date convention.
+    work_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    date_basis: Mapped[str] = mapped_column(String, default="")  # effective | compliance_deadline | runout | transition_end | window_closes | none_established
+    # Required whenever work_date is null. Enforced in the agent's
+    # completeness validation and at the endpoint, not by a DB check.
+    date_absent_reason: Mapped[str] = mapped_column(Text, default="")
+    # Which categories, bases or platforms this touches, from the envelope.
+    applicability: Mapped[dict] = mapped_column(JSON, default=dict)
+    work_implied: Mapped[str] = mapped_column(String, nullable=False)  # requalification | new_approval | design_change | standards_participation | supplier_qualification | documentation | other
+    work_implied_description: Mapped[str] = mapped_column(Text, default="")
+    # Carried from the platform where it differs -- a pursued platform makes
+    # the work an entry condition rather than a cost against revenue.
+    platform_relationship: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # -- evidence basis ----------------------------------------------------
+    classification: Mapped[str] = mapped_column(String, default="")  # FACT | OBSERVATION | INTERPRETATION | FORECAST | UNKNOWN
+    confidence: Mapped[str] = mapped_column(String, default="")  # High | Medium | Low
+    source: Mapped[str] = mapped_column(Text, default="")
+    source_date: Mapped[str] = mapped_column(String, default="")
+
+    # -- triage ------------------------------------------------------------
+    # Independent of the linked DiscoveredCandidate's status: this one answers
+    # "is this finding real and relevant", that one answers "would we scope
+    # this as a project". A disagreement between them is shown, not hidden.
+    status: Mapped[str] = mapped_column(String, default="new")  # new | under_review | accepted | dismissed
+    dismissal_reason: Mapped[str] = mapped_column(Text, default="")
+
+    first_seen_run_id: Mapped[str | None] = mapped_column(String, ForeignKey("agent_runs.id"), nullable=True)
+    last_seen_run_id: Mapped[str | None] = mapped_column(String, ForeignKey("agent_runs.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
