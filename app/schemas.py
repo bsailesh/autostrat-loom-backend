@@ -776,3 +776,158 @@ class TrCandidateWorkPatchRequest(BaseModel):
     be silently overwritten, which is worse than not offering it."""
     status: Literal["new", "under_review", "accepted", "dismissed"]
     dismissal_reason: str = Field(default="", max_length=2000)
+
+
+# ---------- Voice of Customer agent (Agent 1) ----------
+#
+# Controlled lists are Literal here and plain String in the database,
+# matching app/models.py's convention of no DB-level enums. The evidence
+# file_type list lives in voice_of_customer/context.py (FILE_TYPES) and is
+# validated at the endpoint, since it is the package's vocabulary.
+
+
+class VocSegmentIn(BaseModel):
+    segment_key: str = Field(min_length=1, max_length=64)
+    segment_name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    # None means unknown -- a legitimate answer, and never coerced to 0.
+    approximate_count: int | None = Field(default=None, ge=0)
+
+    model_config = {"from_attributes": True}
+
+
+class VocChannelIn(BaseModel):
+    channel: str = Field(min_length=1, max_length=200)
+    direction: Literal["inbound", "outbound", "both"] = "inbound"
+    note: str = Field(default="", max_length=2000)
+
+    model_config = {"from_attributes": True}
+
+
+class VocCustomerIn(BaseModel):
+    customer_name: str = Field(min_length=1, max_length=200)
+    segment_key: str = Field(default="", max_length=64)
+    products: str = Field(default="", max_length=2000)
+    relationship_status: str = Field(default="", max_length=200)
+
+    model_config = {"from_attributes": True}
+
+
+class VocKnownPainPointIn(BaseModel):
+    pain_point: str = Field(min_length=1, max_length=2000)
+    segment_key: str = Field(default="", max_length=64)
+    category_key: str = Field(default="", max_length=64)
+    their_assessment: str = Field(default="", max_length=2000)
+
+    model_config = {"from_attributes": True}
+
+
+class VocConfigIn(BaseModel):
+    attribution_policy: Literal["segment_only", "role_and_segment", "named"] = "segment_only"
+
+    model_config = {"from_attributes": True}
+
+
+class VocProductCategoryIn(BaseModel):
+    """A VoC-specific addition. Categories already declared for Tech &
+    Regulation are read through and are not re-entered here."""
+    category_key: str = Field(min_length=1, max_length=64)
+    category_name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+    model_config = {"from_attributes": True}
+
+
+class VocCategoryOut(BaseModel):
+    category_key: str
+    category_name: str
+    description: str
+    source: Literal["tech-regulation", "voice-of-customer"]
+
+
+class VocContextStateItemOut(BaseModel):
+    """`consequence` is empty whenever `status` is "set" (b4f3282)."""
+    key: str
+    label: str
+    status: str  # "set" | "missing"
+    count: int
+    consequence: str
+
+
+class VocAnalysisOut(BaseModel):
+    key: str
+    label: str
+    available: bool
+    enabled_by: list[str]
+    minimum_source: str
+    note: str
+
+
+class VocContextStateOut(BaseModel):
+    operating_tier: str  # tier_2 | tier_1_partial | tier_1_substantial
+    tier_label: str
+    run_label: str  # "External Customer-Context Analysis" at Tier 2, else "Voice of Customer"
+    statement: str  # the first-line statement the run itself will carry
+    items: list[VocContextStateItemOut]
+    analyses: list[VocAnalysisOut]
+
+
+class VocEvidenceFileOut(BaseModel):
+    id: str
+    file_type: str
+    file_format: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    as_of: str
+    period_start: str
+    period_end: str
+    is_sample: bool
+    sample_description: str
+    segment_coverage: list[str]
+    row_unit: str
+    columns: list[str]
+    column_roles: dict[str, str]
+    row_count: int | None
+    page_count: int | None
+    char_count: int
+    ingest_status: str
+    issues: list[dict]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class VocEvidencePatchRequest(BaseModel):
+    """Metadata only -- the content is never edited after ingest. Used to
+    confirm the CSV column mapping once the detected columns are seen."""
+    file_type: str | None = None
+    as_of: str | None = Field(default=None, max_length=32)
+    period_start: str | None = Field(default=None, max_length=32)
+    period_end: str | None = Field(default=None, max_length=32)
+    is_sample: bool | None = None
+    sample_description: str | None = Field(default=None, max_length=2000)
+    segment_coverage: list[str] | None = None
+    row_unit: str | None = Field(default=None, max_length=64)
+    column_roles: dict[str, str] | None = None
+
+
+class VoiceOfCustomerRunRequest(BaseModel):
+    """Optional execution tweaks only. No force/confirm flag: a run is never
+    blocked -- without evidence it degrades to Tier 2 and says so."""
+    model: str | None = Field(default=None, description="Optional model override (e.g. claude-sonnet-5)")
+    max_searches: int | None = Field(default=None, ge=1, le=40)
+    research_rounds: int | None = Field(default=None, ge=1, le=4)
+
+
+class VocRunOut(BaseModel):
+    id: str
+    agent_type: str
+    subject: str
+    status: str
+    error: str | None = None
+    created_at: datetime
+    # From voc_run_meta; null until the run has succeeded.
+    operating_tier: str | None = None
+    run_label: str | None = None
+    sampling_notes: list[str] = Field(default_factory=list)

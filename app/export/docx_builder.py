@@ -51,6 +51,7 @@ AGENT_LABELS = {
     "market-insights": "Market Insights",
     "strategy-synthesis": "Strategy Synthesis",
     "tech-regulation": "Technology & Regulation",
+    "voice-of-customer": "Voice of Customer",
 }
 
 
