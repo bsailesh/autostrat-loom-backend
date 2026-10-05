@@ -136,6 +136,26 @@ def render_computed_text(computed: ComputedResults) -> str:
 # whether an unknown key should fail the pass or be dropped with a warning --
 # failing is consistent with the checks below, dropping is more forgiving of
 # a model that scores a proposal it was asked only to list.
+def _unwrap_pass1_input(tool_input: Any) -> Any:
+    """Recover an answer the model nested under a single wrapper key.
+
+    `{"context": {"candidates": [...], "project_scores": [...]}}` is a
+    complete answer in the wrong place, not a wrong answer -- unwrapping it
+    saves a corrective retry that costs minutes on a portfolio this size.
+    Only the unambiguous shape is unwrapped: no Pass 1 field at the top
+    level, exactly one key, and a dict under it carrying at least one Pass 1
+    field. Anything else is left for validation to reject by name.
+    """
+    if not isinstance(tool_input, dict) or len(tool_input) != 1:
+        return tool_input
+    fields = set(Pass1Output.model_fields)
+    (key, inner), = tool_input.items()
+    if key in fields or not isinstance(inner, dict) or not fields & set(inner):
+        return tool_input
+    logger.warning("Pass 1 answer arrived nested under %r; unwrapped", key)
+    return inner
+
+
 def _pass1_completeness_gaps(output: Pass1Output, brief: DecisionBrief) -> list[str]:
     """Structural completeness of Pass 1's scores, checked against the brief
     it was given. A schema-valid payload can still be wrong in a way the
@@ -290,7 +310,7 @@ class StrategySynthesisAgent:
                 last_error = f"no matching tool_use block in response (stop_reason={response.stop_reason})"
             else:
                 try:
-                    output = Pass1Output.model_validate(block.input)
+                    output = Pass1Output.model_validate(_unwrap_pass1_input(block.input))
                 except ValidationError as e:
                     last_error = f"failed schema validation: {e}"
                 else:
@@ -299,8 +319,19 @@ class StrategySynthesisAgent:
                         return output
                     last_error = "schema-valid but structurally incomplete -- " + "; ".join(gaps)
 
+            # Warning level, unlike the per-attempt line above: nothing in the
+            # app configures logging, so INFO never reaches the service journal,
+            # and run 0ce2341c's rejection was undiagnosable without these.
+            top_level_keys = sorted(block.input) if block is not None and isinstance(block.input, dict) else None
+            logger.warning(
+                "Pass 1 attempt %d rejected (stop_reason=%s, output_tokens=%s, top-level keys=%s): %s",
+                attempt,
+                response.stop_reason,
+                response.usage.output_tokens,
+                top_level_keys,
+                last_error,
+            )
             if attempt == 1:
-                logger.warning("Pass 1 output rejected on attempt 1: %s", last_error)
                 user_prompt = (
                     f"{user_prompt}\n\n"
                     f"Your previous response was rejected:\n{last_error}\n"
