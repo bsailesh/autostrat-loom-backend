@@ -11,7 +11,7 @@ re-export them from app/schemas.py, without this package ever depending on
 app/.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Pass1Citation(BaseModel):
@@ -84,6 +84,18 @@ class Pass1InferredDependency(BaseModel):
 
 
 class Pass1Output(BaseModel):
+    # extra="forbid", top level only. Every field below defaults to [], and
+    # pydantic's default is to ignore unknown keys -- so an answer the model
+    # nested under a wrapper ({"context": {...}}) or a misnamed field
+    # validated as a completely empty Pass1Output and was rejected only as
+    # "0 of 9 committed projects scored", a message that names neither the
+    # cause nor the fix, so the corrective retry repeated the mistake
+    # (Arden run 0ce2341c, 5 Oct 2026). Forbidding extras makes that a schema
+    # error naming the offending key, and puts additionalProperties: false in
+    # the tool schema the model is given. Nested models stay permissive: a
+    # stray extra field on one candidate is harmless, not a lost answer.
+    model_config = ConfigDict(extra="forbid")
+
     candidates: list[Pass1Candidate] = Field(default_factory=list)
     project_scores: list[Pass1ProjectScore] = Field(default_factory=list)
     criterion_substitutions: list[Pass1CriterionSubstitution] = Field(default_factory=list)

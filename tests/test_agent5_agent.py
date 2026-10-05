@@ -265,6 +265,39 @@ class TestPass1RejectsStructurallyEmptyOutput:
         assert _pass1_completeness_gaps(result, brief) == []
 
 
+    def test_an_answer_nested_under_a_wrapper_key_is_recovered_without_a_retry(self):
+        """Arden run 0ce2341c: both attempts came back schema-valid and empty,
+        not truncated. A complete answer under a wrapper key validated as an
+        empty Pass1Output because unknown keys were silently ignored."""
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+        wrapped = _pass1_response({"context": _pass1_output_for(brief).model_dump()})
+
+        with patch.object(agent._client.messages, "stream", _streaming(wrapped)) as stream:
+            result = agent._call_pass1(brief, "brief text", {})
+
+        assert stream.call_count == 1
+        assert {ps.project_key for ps in result.project_scores} == {p.project_key for p in brief.projects}
+
+    def test_a_misnamed_top_level_field_is_rejected_by_name_not_as_an_empty_answer(self):
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+        payload = _pass1_output_for(brief).model_dump()
+        payload["project_dimension_scores"] = payload.pop("project_scores")
+        misnamed = _pass1_response(payload)
+        good = _pass1_response(_pass1_output_for(brief).model_dump())
+
+        with patch.object(agent._client.messages, "stream", _streaming(misnamed, good)) as stream:
+            result = agent._call_pass1(brief, "brief text", {})
+
+        retry_prompt = stream.call_args_list[1].kwargs["messages"][0]["content"]
+        assert "failed schema validation" in retry_prompt
+        assert "project_dimension_scores" in retry_prompt
+        assert len(result.project_scores) == len(brief.projects)
+
+    def test_the_tool_schema_tells_the_model_extra_top_level_keys_are_forbidden(self):
+        assert Pass1Output.model_json_schema()["additionalProperties"] is False
+
 
 class TestTwoPassBoundary:
     """The tests that exist to make the two-pass boundary a checked
