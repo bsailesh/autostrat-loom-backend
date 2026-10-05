@@ -155,11 +155,31 @@ def _opening_instruction(spec: ReportSpec) -> str:
     return "No special opening heading is required for this report -- go straight into the content."
 
 
+def _upstream_findings_block(upstream_findings: dict[str, str] | None) -> str:
+    if not upstream_findings:
+        return ""
+    sections = "\n\n".join(
+        f"### From {agent_type}\n\n{text}" for agent_type, text in upstream_findings.items()
+    )
+    return f"""
+## Upstream findings for synthesis (verbatim -- not summarised)
+
+Upstream agents flagged these findings for a product leader. They are not
+candidates and not projects. In this report, include a section headed exactly
+'## Upstream findings for synthesis' that surfaces each one, attributed to its
+agent: state how it bears on the decision, or, in one line, why it does not.
+Do not drop one silently, do not rank them, and do not turn any into a project.
+
+{sections}
+"""
+
+
 def pass2_user_prompt(
     spec: ReportSpec,
     brief_text: str,
     pass1_output: Pass1Output,
     computed_text: str,
+    upstream_findings: dict[str, str] | None = None,
 ) -> str:
     return f"""\
 ## Report to write
@@ -183,5 +203,5 @@ Exhibit: {spec.exhibit}
 ## Computed results (already correct -- narrate, do not recalculate)
 
 {computed_text}
-
+{_upstream_findings_block(upstream_findings)}
 Write Report {spec.number} now."""

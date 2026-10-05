@@ -992,3 +992,191 @@ class TrCandidateWork(Base):
     last_seen_run_id: Mapped[str | None] = mapped_column(String, ForeignKey("agent_runs.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+# ---------------------------------------------------------------------------
+# Agent 1 (Voice of Customer) — customer context and evidence
+#
+# Two parts doing different jobs (voice_of_customer_input_spec.md): the
+# context tables say who the customers are, so findings can be attributed;
+# the evidence tables hold the customer voice itself. Without evidence the
+# agent runs at Tier 2 and is titled an external customer-context analysis.
+#
+# Product categories are NOT duplicated here. Tech & Regulation already owns
+# `tr_product_categories`, and VoC reads them through, with its own additions
+# in `voc_product_categories`. This is the second agent needing that list,
+# which is the point at which a shared Product Profile stops being premature
+# -- extract it after this agent ships, not during.
+#
+# `agent_runs` and `agent_reports` are reused via agent_type
+# "voice-of-customer". Every table below is new, so create_all is sufficient
+# to deploy all of this -- no ALTER TABLE on production.
+# ---------------------------------------------------------------------------
+
+
+class VocSegment(Base):
+    """Who findings are attributed to. `approximate_count` is nullable on
+    purpose: `unknown` is a legitimate answer and must never become zero,
+    because the agent says when a finding rests on a segment of unstated
+    size."""
+    __tablename__ = "voc_segments"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "segment_key", name="uq_voc_segment_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    segment_key: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "OEM-TIER1"
+    segment_name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    approximate_count: Mapped[int | None] = mapped_column(nullable=True)  # None = unknown, never 0
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class VocChannel(Base):
+    """How feedback arrives. A declared channel with no evidence from it is
+    itself a finding -- absent feedback is not the same as no complaints."""
+    __tablename__ = "voc_channels"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "channel", name="uq_voc_channel_tenant_channel"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    channel: Mapped[str] = mapped_column(String, nullable=False)
+    direction: Mapped[str] = mapped_column(String, default="inbound")  # inbound | outbound | both
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class VocCustomer(Base):
+    """Named customers. Optional and sensitive: used for attribution inside
+    the system, and as the name list the output attribution check scans
+    for. How a name may appear in output is set by VocConfig."""
+    __tablename__ = "voc_customers"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "customer_name", name="uq_voc_customer_tenant_name"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    customer_name: Mapped[str] = mapped_column(String, nullable=False)
+    segment_key: Mapped[str] = mapped_column(String, default="")
+    products: Mapped[str] = mapped_column(Text, default="")
+    relationship_status: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class VocKnownPainPoint(Base):
+    """What the customer believes their customers complain about --
+    deliberately a hypothesis, not evidence. The input to the highest-value
+    analysis this agent performs (corroborated / contradicted / not found),
+    which is unavailable unless the belief was recorded before the run."""
+    __tablename__ = "voc_known_pain_points"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    pain_point: Mapped[str] = mapped_column(Text, nullable=False)
+    segment_key: Mapped[str] = mapped_column(String, default="")
+    category_key: Mapped[str] = mapped_column(String, default="")
+    their_assessment: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class VocConfig(Base):
+    """One row per tenant. Absent row = defaults (segment_only)."""
+    __tablename__ = "voc_config"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False, unique=True)
+    attribution_policy: Mapped[str] = mapped_column(String, default="segment_only")  # segment_only | role_and_segment | named
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class VocProductCategory(Base):
+    """VoC-specific additions to the product categories read through from
+    tr_product_categories. Where a key exists in both, the read-through
+    wins, so the customer never maintains the same category twice."""
+    __tablename__ = "voc_product_categories"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "category_key", name="uq_voc_product_category_tenant_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    category_key: Mapped[str] = mapped_column(String, nullable=False)
+    category_name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class VocEvidenceFile(Base):
+    """One uploaded evidence document. The content lives in VocEvidenceItem
+    rows, never on this row, so listing files never loads evidence.
+
+    `is_sample` is load-bearing: a sample is not a census, and the agent must
+    never report frequency from one as though it were. It is carried into
+    the prompt header of every rendering of this file."""
+    __tablename__ = "voc_evidence_files"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    file_type: Mapped[str] = mapped_column(String, nullable=False)  # voice_of_customer.context.FILE_TYPES
+    file_format: Mapped[str] = mapped_column(String, nullable=False)  # text | pdf | csv
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, default="")
+    size_bytes: Mapped[int] = mapped_column(default=0)
+    # String ISO dates, display and prompt only (the Asset.eol_date
+    # convention): nothing computes against them.
+    as_of: Mapped[str] = mapped_column(String, default="")
+    period_start: Mapped[str] = mapped_column(String, default="")
+    period_end: Mapped[str] = mapped_column(String, default="")
+    is_sample: Mapped[bool] = mapped_column(default=False)
+    sample_description: Mapped[str] = mapped_column(Text, default="")
+    segment_coverage: Mapped[list] = mapped_column(JSON, default=list)  # segment keys, where known
+    # CSV only. What one row represents ("ticket", "claim", "comment") -- a
+    # count is meaningless without it.
+    row_unit: Mapped[str] = mapped_column(String, default="")
+    columns: Mapped[list] = mapped_column(JSON, default=list)  # detected header row
+    column_roles: Mapped[dict] = mapped_column(JSON, default=dict)  # role -> column name, optional
+    row_count: Mapped[int | None] = mapped_column(nullable=True)  # CSV
+    page_count: Mapped[int | None] = mapped_column(nullable=True)  # PDF
+    char_count: Mapped[int] = mapped_column(default=0)  # all formats -- sizes the prompt budget
+    ingest_status: Mapped[str] = mapped_column(String, default="pending")  # pending | ingested | rejected
+    issues: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class VocEvidenceItem(Base):
+    """One unit of evidence content: a CSV row (`cells`, keyed by header) or
+    a page / section of a text or PDF document (`text`). Stored row-wise so
+    a run iterates a cursor rather than loading a whole export -- the
+    production instance has 414MB of RAM and ticket exports can be large."""
+    __tablename__ = "voc_evidence_items"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    file_id: Mapped[str] = mapped_column(String, ForeignKey("voc_evidence_files.id"), index=True, nullable=False)
+    seq: Mapped[int] = mapped_column(nullable=False)  # row number / page number, 1-based
+    cells: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+
+
+class VocRunMeta(Base):
+    """What a VoC run was, frozen at run time: its tier (which drives the
+    title and the Word cover label), the attribution policy it ran under,
+    how evidence was sampled into the prompt, and what the output
+    attribution check replaced. A new table rather than columns on
+    agent_runs, so no ALTER TABLE is needed."""
+    __tablename__ = "voc_run_meta"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    run_id: Mapped[str] = mapped_column(String, ForeignKey("agent_runs.id"), index=True, nullable=False, unique=True)
+    tier: Mapped[str] = mapped_column(String, nullable=False)  # tier_2 | tier_1_partial | tier_1_substantial
+    attribution_policy: Mapped[str] = mapped_column(String, default="segment_only")
+    sampling_notes: Mapped[list] = mapped_column(JSON, default=list)
+    # Replacement counts per report number only -- never the names, which
+    # would put them back into a table the API serves.
+    attribution_replacements: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

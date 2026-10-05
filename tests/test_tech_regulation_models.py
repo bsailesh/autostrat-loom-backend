@@ -311,4 +311,4 @@ class TestCoverLabel:
 
     def test_an_unregistered_agent_type_still_raises(self):
         with pytest.raises(ValueError):
-            agent_label_for("voice-of-customer")
+            agent_label_for("product-sustainment")

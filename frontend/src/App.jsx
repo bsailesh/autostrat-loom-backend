@@ -17,6 +17,10 @@ import BucketsSubScreen from "./strategySynthesis/decisionInputs/BucketsSubScree
 import TechRegulationEntry from "./techRegulation/TechRegulationEntry.jsx";
 import TechRegulationWorkspace from "./techRegulation/Workspace.jsx";
 import TechRegulationScopeScreen from "./techRegulation/ScopeScreen.jsx";
+import VoiceOfCustomerEntry from "./voiceOfCustomer/VoiceOfCustomerEntry.jsx";
+import VoiceOfCustomerWorkspace from "./voiceOfCustomer/Workspace.jsx";
+import VoiceOfCustomerContextScreen from "./voiceOfCustomer/ContextScreen.jsx";
+import VoiceOfCustomerEvidenceScreen from "./voiceOfCustomer/EvidenceScreen.jsx";
 import { Settings as SettingsIcon } from "lucide-react";
 
 function FullPageLoader() {
@@ -75,6 +79,13 @@ export default function App() {
         <Route path="/agents/tech-regulation/workspace" element={<TechRegulationWorkspace />} />
         <Route path="/agents/tech-regulation/runs/:runId" element={<TechRegulationWorkspace />} />
         <Route path="/agents/tech-regulation/runs/:runId/reports/:reportId" element={<TechRegulationWorkspace />} />
+
+        <Route path="/agents/voice-of-customer" element={<VoiceOfCustomerEntry />} />
+        <Route path="/agents/voice-of-customer/context" element={<VoiceOfCustomerContextScreen />} />
+        <Route path="/agents/voice-of-customer/evidence" element={<VoiceOfCustomerEvidenceScreen />} />
+        <Route path="/agents/voice-of-customer/workspace" element={<VoiceOfCustomerWorkspace />} />
+        <Route path="/agents/voice-of-customer/runs/:runId" element={<VoiceOfCustomerWorkspace />} />
+        <Route path="/agents/voice-of-customer/runs/:runId/reports/:reportId" element={<VoiceOfCustomerWorkspace />} />
 
         <Route
           path="/settings"

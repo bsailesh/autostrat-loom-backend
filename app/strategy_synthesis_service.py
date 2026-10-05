@@ -49,6 +49,7 @@ from strategy_synthesis.brief import (
 )
 from strategy_synthesis.config import Settings as AgentSettings
 from strategy_synthesis.schemas import Pass1Candidate
+from strategy_synthesis.upstream import extract_findings_for_synthesis, reattach_findings
 
 logger = logging.getLogger(__name__)
 
@@ -221,13 +222,30 @@ def load_upstream_text(
         text = "\n\n".join(chunks)
 
         if total_chars > UPSTREAM_SUMMARIZE_THRESHOLD_CHARS:
+            # Extracted before summarising and re-attached after, verbatim:
+            # a "Findings for synthesis" section exists so findings are not
+            # lost, and the summarizer preserves facts but not sections.
+            findings = extract_findings_for_synthesis(text)
             summarized = agent.summarize_upstream_agent(agent_type, text)
             text = (
                 f"[Note: this agent's {total_chars:,}-character report pack was "
-                f"summarized before analysis.]\n\n{summarized}"
+                f"summarized before analysis.]\n\n{reattach_findings(summarized, findings)}"
             )
         result[agent_type] = text
     return result
+
+
+def upstream_findings_for_synthesis(upstream_text_by_agent: dict[str, str]) -> dict[str, str]:
+    """Each upstream agent's "Findings for synthesis" section, verbatim, for
+    the decision brief's Pass 2 call -- which otherwise never sees upstream
+    text. Read from the already-loaded text, so it always comes from the
+    same run Pass 1 analysed."""
+    out: dict[str, str] = {}
+    for agent_type, text in upstream_text_by_agent.items():
+        findings = extract_findings_for_synthesis(text)
+        if findings:
+            out[agent_type] = findings
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -524,7 +542,12 @@ def execute_run(
             structured_candidates = load_structured_candidate_work(
                 db, tenant, upstream_run_overrides
             )
-            result = agent.run(brief, upstream_text_by_agent, structured_candidates)
+            result = agent.run(
+                brief,
+                upstream_text_by_agent,
+                structured_candidates,
+                upstream_findings=upstream_findings_for_synthesis(upstream_text_by_agent),
+            )
 
             for report in result.reports:
                 db.add(

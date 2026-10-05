@@ -310,7 +310,7 @@ class TestTwoPassBoundary:
 
         captured_pass2_prompts = []
 
-        def fake_call_pass2_report(spec, brief_text, pass1_out, computed_text):
+        def fake_call_pass2_report(spec, brief_text, pass1_out, computed_text, upstream_findings=None):
             captured_pass2_prompts.append((spec, computed_text))
             return f"# Report {spec.number}"
 

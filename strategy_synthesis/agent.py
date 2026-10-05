@@ -66,6 +66,11 @@ class UpstreamSummaryError(Exception):
 # tokens, so the ceiling is set above it rather than at it.
 UPSTREAM_SUMMARY_MAX_TOKENS = 32000
 
+# The one report that receives upstream "Findings for synthesis" verbatim:
+# the decision brief, where a product leader reads. Repeating the block in
+# all seven Pass 2 calls would add input cost for no reader.
+DECISION_BRIEF_REPORT_NUMBER = 7
+
 
 # Streamed, with a ceiling well clear of what a complete answer costs.
 # Measured on the nine-project Arden brief (six criteria, twelve candidates):
@@ -350,7 +355,12 @@ class StrategySynthesisAgent:
     # -----------------------------------------------------------------
 
     def _call_pass2_report(
-        self, spec: ReportSpec, brief_text: str, pass1_output: Pass1Output, computed_text: str
+        self,
+        spec: ReportSpec,
+        brief_text: str,
+        pass1_output: Pass1Output,
+        computed_text: str,
+        upstream_findings: dict[str, str] | None = None,
     ) -> str:
         with self._client.messages.stream(
             model=self._model,
@@ -359,7 +369,9 @@ class StrategySynthesisAgent:
             messages=[
                 {
                     "role": "user",
-                    "content": pass2_user_prompt(spec, brief_text, pass1_output, computed_text),
+                    "content": pass2_user_prompt(
+                        spec, brief_text, pass1_output, computed_text, upstream_findings
+                    ),
                 }
             ],
             thinking={"type": "adaptive"},
@@ -384,12 +396,18 @@ class StrategySynthesisAgent:
         brief: DecisionBrief,
         upstream_text_by_agent: dict[str, str],
         structured_candidates: list[dict] | None = None,
+        upstream_findings: dict[str, str] | None = None,
     ) -> AgentRunResult:
         """`structured_candidates` is Agent 3's candidate work, read as rows
         from tr_candidate_work by the service layer and handed to Pass 1
         pre-structured. Optional and defaulted: Pass 1's own discovery from
         upstream report markdown is unchanged and runs whether or not any
-        are supplied."""
+        are supplied.
+
+        `upstream_findings` is each upstream agent's "Findings for synthesis"
+        section, verbatim (strategy_synthesis/upstream.py). Pass 1 already
+        sees it inside the upstream text; it is also handed to the decision
+        brief's Pass 2 call, which otherwise sees no upstream text at all."""
         brief_text = render_brief_text(brief)
 
         pass1_output = self._call_pass1(
@@ -403,7 +421,13 @@ class StrategySynthesisAgent:
             Report(
                 report_number=spec.number,
                 title=spec.title,
-                content=self._call_pass2_report(spec, brief_text, pass1_output, computed_text),
+                content=self._call_pass2_report(
+                    spec,
+                    brief_text,
+                    pass1_output,
+                    computed_text,
+                    upstream_findings if spec.number == DECISION_BRIEF_REPORT_NUMBER else None,
+                ),
             )
             for spec in REPORTS
         ]
