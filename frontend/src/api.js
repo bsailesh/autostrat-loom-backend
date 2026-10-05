@@ -153,6 +153,52 @@ export const api = {
       apiFetch(`/agents/tech-regulation/candidate-work/${key}`, { method: "DELETE" }),
   },
 
+  // Agent 1. Context sections are GET/PUT lists (config is a single
+  // object); evidence is multipart upload plus PATCH for the CSV mapping.
+  voiceOfCustomer: {
+    getContext: (section) => apiFetch(`/agents/voice-of-customer/context/${section}`),
+    putContext: (section, body) =>
+      apiFetch(`/agents/voice-of-customer/context/${section}`, { method: "PUT", body: JSON.stringify(body) }),
+    getContextState: () => apiFetch("/agents/voice-of-customer/context/state"),
+    listEvidence: () => apiFetch("/agents/voice-of-customer/evidence"),
+    uploadEvidence: (file, fields = {}) => {
+      const session = getSession();
+      const form = new FormData();
+      form.append("file", file);
+      for (const [k, v] of Object.entries(fields)) {
+        if (v === undefined || v === null || v === "") continue;
+        form.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+      }
+      return fetch(API_BASE + "/agents/voice-of-customer/evidence", {
+        method: "POST",
+        headers: session ? { Authorization: "Bearer " + session.token } : {},
+        body: form,
+      }).then(async (resp) => {
+        if (resp.status === 401) {
+          clearSession();
+          window.dispatchEvent(new Event("loom:unauthorized"));
+          throw new ApiError("Your session has expired — please sign in again.", 401);
+        }
+        const body = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          const detail = body && body.detail;
+          throw new ApiError(typeof detail === "string" ? detail : resp.statusText, resp.status);
+        }
+        return body;
+      });
+    },
+    patchEvidence: (id, body) =>
+      apiFetch(`/agents/voice-of-customer/evidence/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    deleteEvidence: (id) => apiFetch(`/agents/voice-of-customer/evidence/${id}`, { method: "DELETE" }),
+    startRun: (payload) =>
+      apiFetch("/agents/voice-of-customer/runs", { method: "POST", body: JSON.stringify(payload || {}) }),
+    listRuns: () => apiFetch("/agents/voice-of-customer/runs"),
+    getRun: (runId) => apiFetch(`/agents/voice-of-customer/runs/${runId}`),
+    listRunReports: (runId) => apiFetch(`/agents/voice-of-customer/runs/${runId}/reports`),
+    getReport: (reportId) => apiFetch(`/agents/voice-of-customer/reports/${reportId}`),
+    exportRunDocx: (runId) => fetchDocx(`/agents/voice-of-customer/runs/${runId}/export.docx`),
+  },
+
   strategySynthesis: {
     startRun: (payload) => apiFetch("/agents/strategy/runs", { method: "POST", body: JSON.stringify(payload || {}) }),
     listRuns: () => apiFetch("/agents/strategy/runs"),
