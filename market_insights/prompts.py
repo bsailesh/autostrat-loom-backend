@@ -176,8 +176,10 @@ def _opening_instruction(spec: ReportSpec) -> str:
         "OPENING: Begin with a **Key Insights** box — at most three bullets "
         "(a ceiling, not a target) pulling THIS report's most materially "
         "important findings. Each is one sentence, states its consequence, and "
-        "ends with a short tag such as (Confidence: High — FACT). Everything else "
-        "goes in the body."
+        "ends with a short tag such as (Confidence: High — FACT) -- one tag, never "
+        "two. Everything else goes in the body, except a validity caveat, which "
+        "goes on its own line below the bullets beginning 'Validity:' and does "
+        "not count against the three."
     )
 
 

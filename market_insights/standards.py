@@ -140,9 +140,26 @@ special opening. The principal decision report uses the Governing Insight
 - Each insight states what follows from it — the consequence — not just the
   observation.
 - Confidence and classification stay, as a short tag at the end in exactly
-  this form: "(Confidence: High — FACT)". Not as a clause.
+  this form: "(Confidence: High — FACT)". Not as a clause. ONE tag per
+  insight, never two: do not add a second trailing confidence marker after
+  the parenthetical, and do not restate confidence as a clause as well as a
+  tag. Where an agent's own report instructions name a basis label rather
+  than a classification for the second position -- Strategy Synthesis uses
+  measured / calculated / source-derived / estimated -- that label takes the
+  second position instead, as "(Confidence: High — calculated)". Follow the
+  agent's own instruction; never emit both forms.
 - Everything cut moves into the body. Nothing is lost; it stops being
   presented as a headline.
+- A VALIDITY CAVEAT IS EXEMPT from the cap and does not occupy one of the
+  three. A validity caveat is a statement that qualifies every number in the
+  report -- substituted evidence behind a weighted criterion, an analysis
+  that could not be run, a missing input the whole report rests on -- as
+  distinct from a gap that is itself a finding about the subject, which is
+  selection rule 4 below and does compete for a slot. State it on its own
+  line immediately below the bullets, beginning "Validity:". It is not a
+  headline and does not compete with them; it tells the reader how far to
+  trust the three above. Omit the line entirely where nothing qualifies the
+  report.
 
 Where more than three candidates exist, prefer, in order:
 1. A finding that changes what the reader would do.

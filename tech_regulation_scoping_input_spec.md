@@ -140,10 +140,19 @@ Named suppliers whose technology developments and discontinuations matter.
 
 ```
 supplier, what_they_supply, criticality
-Vendor A,  GaN power devices,              single source
-Vendor B,  Roller screws,                  dual sourced
-Vendor C,  Position sensors — resolver,    single source
+Infineon Technologies,  GaN power devices (650 V class),   single source
+SKF,                    Planetary roller screws,            dual sourced
+Ewellix,                Planetary roller screws,            dual sourced
+Tamagawa Seiki,         Resolver position sensors,          single source
 ```
+
+**Name real suppliers.** Placeholder names (`Vendor A`, `Supplier 1`) disable
+this field entirely: the agent cannot search for a company that does not exist,
+so product change notices and end-of-life announcements go unfound, and any
+related finding is reported as category-adjacent with BOM presence
+unestablished. Supplier discontinuation monitoring is the highest-value
+function this agent performs, because it produces **dated** candidate work —
+anonymising the list removes it.
 
 **Scopes:** whose product change notices and end-of-life announcements to
 surface.
@@ -278,8 +287,9 @@ business jet (shipping); mobile launcher (shipping); narrowbody commercial
 **Standards held:** DO-160G compliant; DO-254 in progress; AS9100D certified;
 MIL-STD-461G compliant.
 
-**Supplier watch list:** GaN power devices (single source); roller screws (dual
-sourced); resolver position sensors (single source).
+**Supplier watch list:** Infineon Technologies — GaN power devices, 650 V class
+(single source); SKF and Ewellix — planetary roller screws (dual sourced);
+Tamagawa Seiki — resolver position sensors (single source).
 
 **Technology domains:** electrification; advanced air mobility; UAV/UAS; space
 systems; cybersecurity.
@@ -287,10 +297,13 @@ systems; cybersecurity.
 **Exclusions:** Part 23 general aviation; China; rail and marine.
 
 That is roughly fifteen minutes of work and it transforms what the agent can
-say. Note the two fields that connect directly to findings already in the
-platform: **DO-254 in progress** matches committed project P-01, and **GaN
-power devices, single source** matches P-03 and objective SO-2. A regulatory or
-supplier finding against either lands straight on work Arden is already doing.
+say. Note the fields that connect directly to findings already in the platform:
+**DO-254 in progress** matches committed project P-01, and **Infineon GaN power
+devices, single source** matches P-03 and objective SO-2. A regulatory or
+supplier finding against either lands straight on work Arden is already doing —
+and because the supplier is named rather than anonymised, a discontinuation
+notice is attributable to a specific part rather than reported as
+category-adjacent.
 
 ---
 

@@ -23,7 +23,7 @@ fallback and the script says when it used them. The two agents share a
 tenant API key; nothing about them is otherwise connected at load time.
 
 PROVENANCE OF THE DATA BELOW. Everything is transcribed from the scoping
-spec, with three authored details flagged inline:
+spec, with two authored details flagged inline:
 
   * `category_key` values for the two categories Part 6 names only in prose
     (ground-based air defence actuation, hydraulic-replacement retrofit).
@@ -32,13 +32,21 @@ spec, with three authored details flagged inline:
   * `platform_class` values, taken from the products/fleet table in
     arden_actuation_demo_brief.md Section 2 rather than from the scoping
     spec, which only names the platforms.
-  * Supplier names are the spec's own "Vendor A/B/C" placeholders, kept
-    verbatim rather than invented into real companies.
 
-Nothing numeric or categorical is invented beyond those three. Where the
-spec gives no value -- a `held_since` for MIL-STD-461G, for instance -- the
-field is left empty rather than filled with a guess, which is also what the
-agent's own rules require of it.
+Supplier names are now real and transcribed verbatim from Part 1.6 -- they
+were "Vendor A/B/C" placeholders until the spec was updated. That is not
+cosmetic: the agent cannot search for a company that does not exist, so
+anonymised names cost two things it is otherwise good at. Product change
+notices and end-of-life announcements go unfound, which removes the
+highest-value candidate work this agent produces because discontinuations
+are what carry runout DATES. And patent search axis 2 (by named assignee)
+reports itself unavailable rather than performed. Both recover with real
+names.
+
+Nothing numeric or categorical is invented beyond the two details above.
+Where the spec gives no value -- a `held_since` for MIL-STD-461G, for
+instance -- the field is left empty rather than filled with a guess, which
+is also what the agent's own rules require of it.
 """
 from __future__ import annotations
 
@@ -223,14 +231,31 @@ STANDARDS_HELD = [
 # ---------------------------------------------------------------------------
 # 6. Supplier watch list  (spec Part 1.6, confirmed by Part 6)
 #
-# "Vendor A/B/C" are the spec's own placeholders and are kept verbatim.
-# Part 6 notes the GaN row matches committed project P-03 and objective SO-2.
+# Real company names, verbatim from the spec. Part 6 notes the Infineon GaN
+# row matches committed project P-03 and objective SO-2, and that naming the
+# supplier is what makes a discontinuation notice attributable to a specific
+# part rather than reported as category-adjacent.
+#
+# SKF and Ewellix are two rows for one part, which is what "dual sourced"
+# means here -- two named suppliers of planetary roller screws, not a
+# duplicated row. The criticality vocabulary uses underscores
+# (single_source / dual_sourced) where the spec's table writes them with a
+# space; the API enum is the underscored form.
 # ---------------------------------------------------------------------------
 
 SUPPLIERS = [
-    {"supplier": "Vendor A", "what_they_supply": "GaN power devices", "criticality": "single_source"},
-    {"supplier": "Vendor B", "what_they_supply": "Roller screws", "criticality": "dual_sourced"},
-    {"supplier": "Vendor C", "what_they_supply": "Position sensors — resolver", "criticality": "single_source"},
+    {
+        "supplier": "Infineon Technologies",
+        "what_they_supply": "GaN power devices (650 V class)",
+        "criticality": "single_source",
+    },
+    {"supplier": "SKF", "what_they_supply": "Planetary roller screws", "criticality": "dual_sourced"},
+    {"supplier": "Ewellix", "what_they_supply": "Planetary roller screws", "criticality": "dual_sourced"},
+    {
+        "supplier": "Tamagawa Seiki",
+        "what_they_supply": "Resolver position sensors",
+        "criticality": "single_source",
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -363,10 +388,13 @@ def main() -> int:
                 "\nEnvelope loaded. No run was started.\n\n"
                 "Two rows here connect to work already in the Agent 5 brief, which is what makes the\n"
                 "demo land (scoping spec Part 6):\n"
-                "  - DO-254, in progress   -> committed project P-01\n"
-                "  - GaN power devices, single source -> committed project P-03 and objective SO-2\n"
+                "  - DO-254, in progress                        -> committed project P-01\n"
+                "  - Infineon GaN power devices, single source   -> committed project P-03, objective SO-2\n"
                 "A regulatory or supplier finding against either lands straight on work Arden is\n"
-                "already doing."
+                "already doing -- and because the suppliers are named rather than anonymised, a\n"
+                "discontinuation notice is attributable to a specific part instead of being reported\n"
+                "as category-adjacent. Patent search axis 2 (by named assignee) is also available\n"
+                "again, where an anonymised list made it report itself unperformable."
             )
             return 0
 

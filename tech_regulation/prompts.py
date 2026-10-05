@@ -236,7 +236,9 @@ def _opening_instruction(spec: ReportSpec) -> str:
         "Open with a level-2 heading exactly '## Key Insights', followed by at most "
         "three bulleted insights -- a ceiling, not a target. Each is one sentence, "
         "states its consequence, and ends with a short tag such as "
-        "(Confidence: High -- FACT). Everything else goes in the body."
+        "(Confidence: High -- FACT) -- one tag, never two. Everything else goes in "
+        "the body, except a validity caveat, which goes on its own line below the "
+        "bullets beginning 'Validity:' and does not count against the three."
     )
 
 
