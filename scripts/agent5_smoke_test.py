@@ -36,6 +36,8 @@ import time
 
 import httpx
 
+from scripts.credentials import CredentialError, resolve_credentials
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -398,9 +400,9 @@ def upload_csv(client: httpx.Client, file_type: str, csv_text: str) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--base-url", default=os.environ.get("AGENT5_BASE_URL"),
+    parser.add_argument("--base-url", default=None,
                          help="Deployed backend base URL (or set AGENT5_BASE_URL)")
-    parser.add_argument("--api-key", default=os.environ.get("AGENT5_API_KEY"),
+    parser.add_argument("--api-key", default=None,
                          help="Tenant API key (or set AGENT5_API_KEY) -- never hardcode this")
     parser.add_argument("--model", default=os.environ.get("AGENT5_MODEL"),
                          help="Optional model override for the run (or set AGENT5_MODEL). "
@@ -416,21 +418,20 @@ def main() -> int:
     parser.add_argument("--output-dir", default=".", help="Where to save export.docx on success")
     args = parser.parse_args()
 
-    if not args.base_url:
-        print("ERROR: --base-url or AGENT5_BASE_URL is required.", file=sys.stderr)
-        return 2
-    if not args.api_key:
-        print("ERROR: --api-key or AGENT5_API_KEY is required.", file=sys.stderr)
+    try:
+        creds = resolve_credentials(args.base_url, args.api_key, ("AGENT5",))
+    except CredentialError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
         return 2
 
-    headers = {"Authorization": f"Bearer {args.api_key}"}
+    headers = {"Authorization": f"Bearer {creds.api_key}"}
     output_dir = pathlib.Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         upstream_overrides = parse_upstream_overrides(args.upstream_run, os.environ.get("AGENT5_UPSTREAM_RUN"))
 
-        with httpx.Client(base_url=args.base_url.rstrip("/"), headers=headers, timeout=60.0) as client:
+        with httpx.Client(base_url=creds.base_url.rstrip("/"), headers=headers, timeout=60.0) as client:
             _print_step("1. Capacity buckets")
             put_json(client, "/agents/strategy/buckets", {"buckets": BUCKETS}, "PUT buckets")
 

@@ -27,7 +27,9 @@ Or via environment variables (no credentials are hardcoded in this file):
 
 Agent 1's context, Agent 3's envelope and Agent 5's decision brief are
 normally loaded into the SAME Arden tenant, so AGENT3_* and then AGENT5_*
-are accepted as fallbacks and the script says which it used.
+are accepted as fallbacks and the script says which it used. The URL and
+key always come from one source -- both flags, or both halves of one
+prefix -- never mixed (scripts/credentials.py).
 
 PRODUCT CATEGORIES ARE NOT LOADED HERE. Part 6 says "the five categories
 from the Tech & Regulation envelope", and this agent reads those through
@@ -52,10 +54,11 @@ segment_only regardless.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
 import httpx
+
+from scripts.credentials import CredentialError, resolve_credentials
 
 # ---------------------------------------------------------------------------
 # 1. Customer segments  (Part 6 counts; names and descriptions from Part 1.1)
@@ -184,22 +187,6 @@ def put_context(client: httpx.Client, section: str, body, step: str):
     return stored
 
 
-def _resolve(url_flag: str | None, key_flag: str | None) -> tuple[str | None, str | None, str | None]:
-    """(base_url, api_key, env prefix used) -- flags first, then AGENT1_*,
-    AGENT3_*, AGENT5_*, taking the URL and key from the SAME prefix.
-
-    Resolving them independently would pair one agent's key with another's
-    URL whenever only half of a prefix is set -- e.g. AGENT3_API_KEY alone
-    plus AGENT5_BASE_URL sends the Agent 3 key to the Agent 5 host. A prefix
-    only counts if it supplies everything the flags do not."""
-    if url_flag and key_flag:
-        return url_flag, key_flag, None
-    for prefix in ("AGENT1", "AGENT3", "AGENT5"):
-        url = url_flag or os.environ.get(f"{prefix}_BASE_URL")
-        key = key_flag or os.environ.get(f"{prefix}_API_KEY")
-        if url and key:
-            return url, key, prefix
-    return url_flag, key_flag, None
 
 
 # ---------------------------------------------------------------------------
@@ -215,23 +202,19 @@ def main() -> int:
                         help="Tenant API key (or set AGENT1_API_KEY / AGENT3_API_KEY / AGENT5_API_KEY) -- never hardcode this")
     args = parser.parse_args()
 
-    base_url, api_key, source = _resolve(args.base_url, args.api_key)
-
-    if source and source != "AGENT1":
-        print(f"Note: using {source}_BASE_URL / {source}_API_KEY -- the agents' inputs normally "
-              "share the Arden tenant.")
-
-    if not base_url:
-        print("ERROR: --base-url or AGENT1_BASE_URL is required.", file=sys.stderr)
+    try:
+        creds = resolve_credentials(args.base_url, args.api_key, ("AGENT1", "AGENT3", "AGENT5"))
+    except CredentialError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
         return 2
-    if not api_key:
-        print("ERROR: --api-key or AGENT1_API_KEY is required.", file=sys.stderr)
-        return 2
+    if creds.source not in ("flags", "AGENT1"):
+        print(f"Note: using {creds.source}_BASE_URL / {creds.source}_API_KEY -- the agents' inputs "
+              "normally share the Arden tenant.")
 
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {"Authorization": f"Bearer {creds.api_key}"}
 
     try:
-        with httpx.Client(base_url=base_url.rstrip("/"), headers=headers, timeout=60.0) as client:
+        with httpx.Client(base_url=creds.base_url.rstrip("/"), headers=headers, timeout=60.0) as client:
             for i, (section, title, body) in enumerate(SECTIONS, start=1):
                 _print_step(f"{i}. {title}")
                 put_context(client, section, body, f"PUT context/{section}")

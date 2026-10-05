@@ -19,7 +19,9 @@ Or via environment variables (no credentials are hardcoded in this file):
 
 Agent 3's envelope and Agent 5's decision brief are normally loaded into the
 SAME Arden tenant, so AGENT5_BASE_URL / AGENT5_API_KEY are accepted as a
-fallback and the script says when it used them. The two agents share a
+fallback and the script says when it used them. The URL and key always come
+from one source -- both flags, or both halves of one prefix -- never mixed
+(scripts/credentials.py). The two agents share a
 tenant API key; nothing about them is otherwise connected at load time.
 
 PROVENANCE OF THE DATA BELOW. Everything is transcribed from the scoping
@@ -51,10 +53,11 @@ is also what the agent's own rules require of it.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
 import httpx
+
+from scripts.credentials import CredentialError, resolve_credentials
 
 # ---------------------------------------------------------------------------
 # 1. Product categories  (spec Part 6; keys per Part 1.1's EMA-* convention)
@@ -346,24 +349,19 @@ def main() -> int:
                         help="Tenant API key (or set AGENT3_API_KEY / AGENT5_API_KEY) -- never hardcode this")
     args = parser.parse_args()
 
-    base_url = args.base_url or os.environ.get("AGENT3_BASE_URL") or os.environ.get("AGENT5_BASE_URL")
-    api_key = args.api_key or os.environ.get("AGENT3_API_KEY") or os.environ.get("AGENT5_API_KEY")
-
-    if not args.base_url and not os.environ.get("AGENT3_BASE_URL") and os.environ.get("AGENT5_BASE_URL"):
+    try:
+        creds = resolve_credentials(args.base_url, args.api_key, ("AGENT3", "AGENT5"))
+    except CredentialError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    if creds.source == "AGENT5":
         print("Note: using AGENT5_BASE_URL / AGENT5_API_KEY -- Agent 3's envelope and Agent 5's "
               "brief normally share the Arden tenant.")
 
-    if not base_url:
-        print("ERROR: --base-url or AGENT3_BASE_URL is required.", file=sys.stderr)
-        return 2
-    if not api_key:
-        print("ERROR: --api-key or AGENT3_API_KEY is required.", file=sys.stderr)
-        return 2
-
-    headers = {"Authorization": f"Bearer {api_key}"}
+    headers = {"Authorization": f"Bearer {creds.api_key}"}
 
     try:
-        with httpx.Client(base_url=base_url.rstrip("/"), headers=headers, timeout=60.0) as client:
+        with httpx.Client(base_url=creds.base_url.rstrip("/"), headers=headers, timeout=60.0) as client:
             for i, (dimension, title, rows) in enumerate(SECTIONS, start=1):
                 _print_step(f"{i}. {title}")
                 put_scope(client, dimension, rows, f"PUT scope/{dimension}")
