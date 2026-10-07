@@ -29,8 +29,8 @@ from product_sustainment.structure import SustainmentData
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 RUNOUT_TABLE_FIXED_HEADERS = (
-    "Component", "Level", "Description", "On hand", "From higher-level stock", "Open POs", "Supplier qty", "Supplier on order",
-    "Supplier WIP", "Runout", "LTB status", "Qty required", "Risk type", "Lifecycle status",
+    "Component", "Level", "Description", "On hand", "From higher-level stock", "Open POs", "Supplier on order",
+    "Supplier WIP", "Counted supply", "Supplier qty (not counted)", "Runout", "LTB status", "Qty required", "Risk type", "Lifecycle status",
     "Affected LRUs", "Product lines", "Programs",
 )
 # Followed by one "End YYYY" column per projection year.
@@ -122,7 +122,7 @@ def runout_rows(result: SustainmentResult, data: SustainmentData) -> list[dict]:
             "component": p.part_id, "level": p.level, "description": _description(data, p),
             "on_hand": s.on_hand, "from_higher_level_stock": s.from_level1 + s.from_lru, "open_po": s.open_po,
             "supplier_qty": s.supplier_qty_not_counted, "supplier_on_order": s.supplier_on_order,
-            "supplier_wip": s.supplier_wip, "runout": month_label(p.depletion.runout),
+            "supplier_wip": s.supplier_wip, "counted_supply": s.total, "runout": month_label(p.depletion.runout),
             "runout_year": p.depletion.runout[0] if p.depletion.runout else None,
             "runout_month": p.depletion.runout[1] if p.depletion.runout else None,
             "ltb_status": LTB_LABELS[p.ltb_status], "quantity_required": p.quantity_required,
@@ -145,7 +145,8 @@ def runout_table(result: SustainmentResult, data: SustainmentData, limit: int | 
         s = p.supply
         cells = [
             p.part_id, p.level, _description(data, p), _num(s.on_hand), _num(s.from_level1 + s.from_lru),
-            _num(s.open_po), _num(s.supplier_qty_not_counted), _num(s.supplier_on_order), _num(s.supplier_wip),
+            _num(s.open_po), _num(s.supplier_on_order), _num(s.supplier_wip), _num(s.total),
+            _num(s.supplier_qty_not_counted),
             month_label(p.depletion.runout), LTB_LABELS[p.ltb_status], _num(p.quantity_required),
             risk, lifecycle, _lru_cell(p.affected_lrus), product_lines, programs,
         ] + [_num(p.depletion.year_end.get(y, 0)) for y in years]

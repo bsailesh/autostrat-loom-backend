@@ -50,7 +50,8 @@ export function detectRunoutTable(table) {
       on_hand: num(get(row, "On hand")),
       from_higher_level_stock: num(get(row, "From higher-level stock")),
       open_po: num(get(row, "Open POs")),
-      supplier_qty: num(get(row, "Supplier qty")),
+      supplier_qty: num(get(row, "Supplier qty (not counted)")),
+      counted_supply: num(get(row, "Counted supply")),
       supplier_on_order: num(get(row, "Supplier on order")),
       supplier_wip: num(get(row, "Supplier WIP")),
       runout,
@@ -138,7 +139,7 @@ export function RunoutTableView({ rows, years, caption, note }) {
         <table style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead style={{ position: "sticky", top: 0, background: theme.surface }}>
             <tr>
-              {["Component", "On hand", "From cards/LRUs", "Open POs", "Supplier qty", "On order", "WIP", "Runout", "LTB status",
+              {["Component", "On hand", "From cards/LRUs", "Open POs", "On order", "WIP", "Counted supply", "Supplier qty (not counted)", "Runout", "LTB status",
                 "Qty required", ...years.map((y) => `End ${y}`), "Risk", "Lifecycle", "Affected LRUs"].map((h) => <th key={h} style={th}>{h}</th>)}
             </tr>
           </thead>
@@ -152,9 +153,10 @@ export function RunoutTableView({ rows, years, caption, note }) {
                 <td style={td}>{fmt(r.on_hand)}</td>
                 <td style={td}>{fmt(r.from_higher_level_stock)}</td>
                 <td style={td}>{fmt(r.open_po)}</td>
-                <td style={{ ...td, color: theme.textMuted }} title="Reported, not counted as available">{fmt(r.supplier_qty)}</td>
                 <td style={td}>{fmt(r.supplier_on_order)}</td>
                 <td style={td}>{fmt(r.supplier_wip)}</td>
+                <td style={{ ...td, fontWeight: 600 }} title="Exactly what the runout depletes">{fmt(r.counted_supply)}</td>
+                <td style={{ ...td, color: theme.textMuted }} title="Reported, not counted as available">{fmt(r.supplier_qty)}</td>
                 <td style={{ ...td, fontWeight: 600, color: r.runout_year ? theme.textPrimary : theme.textMuted }}>{r.runout}</td>
                 <td style={td}><Badge tone={STATUS_TONE[r.ltb_status] || "muted"}>{r.ltb_status || "—"}</Badge></td>
                 <td style={td}>{fmt(r.quantity_required)}</td>

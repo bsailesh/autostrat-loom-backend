@@ -304,3 +304,31 @@ class TestExposureWithoutPosition:
         # FPGA-A has no stock record, so no position -- but its reach is real.
         assert "| FPGA-A | CCA-MC | AR-FIN | 2 |" in section
         assert "| FPGA-A | CCA-SENS | AR-UTIL | 2 |" in section
+
+
+class TestTableReconcilesWithRunout:
+    def test_counted_supply_is_the_sum_of_counted_columns_and_drives_the_runout(self):
+        from fractions import Fraction
+        from product_sustainment import results as res
+        from product_sustainment.compute import Pipeline
+
+        # Supplier quantity is present and large -- it must not move the date.
+        data = _data(pipeline={"GaN-650": Pipeline(open_po_qty=200, supplier_qty=5000,
+                                                   supplier_on_order_qty=100, supplier_wip_qty=60)},
+                     pipeline_supplied=True)
+        result = compute_sustainment(compute_inputs(data, TODAY))
+        row = next(r for r in res.runout_rows(result, data) if r["component"] == "GaN-650")
+        counted = (row["on_hand"] + row["from_higher_level_stock"] + row["open_po"]
+                   + row["supplier_on_order"] + row["supplier_wip"])
+        assert row["counted_supply"] == counted == 1360
+        assert row["supplier_qty"] == 5000
+
+        # 2,160 a year = 180 a month. 1,360 supply: 7 months = 1,260 < 1,360,
+        # 8 months = 1,440 >= 1,360, so runout is August -- not later.
+        monthly = Fraction(6 * (120 + 2 * 120), 12)
+        assert monthly * 7 < counted <= monthly * 8
+        assert row["runout"] == "Aug 2027"
+
+        table = res.runout_table(result, data)
+        assert "| Counted supply | Supplier qty (not counted) |" in table
+        assert "| 1,360 | 5,000 | Aug 2027 |" in table
