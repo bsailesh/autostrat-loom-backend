@@ -449,7 +449,7 @@ class TestTheChangeIsAdditive:
         brief = _bottleneck_brief()
         captured = {}
 
-        def fake_call_pass1(b, brief_text, upstream, structured=None):
+        def fake_call_pass1(b, brief_text, upstream, structured=None, sustainment_candidates=None):
             captured["structured"] = structured
             return _pass1_output_for(brief)
 

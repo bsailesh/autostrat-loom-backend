@@ -32,6 +32,7 @@ from app.models import (
     ScenarioRow,
     ScenarioWeight,
     StrategicObjective,
+    PsCandidateWork,
     TrCandidateWork,
     StrategyConfig,
     StrategyRule,
@@ -320,6 +321,56 @@ def load_structured_candidate_work(
 
 
 # ---------------------------------------------------------------------------
+# Structured candidate work from Agent 4 -- additive to Agent 3's above
+# ---------------------------------------------------------------------------
+
+PRODUCT_SUSTAINMENT_AGENT_TYPE = "product-sustainment"
+
+# The runout-specific fields are the point: date, quantity, every affected
+# LRU, and the two kinds of alternate. Status and ids are triage, not Pass 1's.
+_SUSTAINMENT_PROMPT_FIELDS = (
+    "candidate_key",
+    "part_id",
+    "driver",
+    "work_date",
+    "date_basis",
+    "date_absent_reason",
+    "applicability",
+    "quantity_required",
+    "quantity_basis",
+    "qualified_alternate_part_id",
+    "candidate_alternates",
+    "work_implied",
+    "work_implied_description",
+    "classification",
+    "confidence",
+    "source",
+    "source_date",
+)
+
+
+def load_sustainment_candidate_work(
+    db: Session, tenant: Tenant, overrides: dict[str, str] | None
+) -> list[dict]:
+    """The candidate work for the selected upstream Product Sustainment run.
+    Same rules as load_structured_candidate_work: run selection matches
+    load_upstream_text, `last_seen_run_id` so a re-confirmed item counts,
+    dismissed items excluded."""
+    overrides = overrides or {}
+    run_id = overrides.get(PRODUCT_SUSTAINMENT_AGENT_TYPE) or _most_recent_successful_run_id(
+        db, tenant, PRODUCT_SUSTAINMENT_AGENT_TYPE
+    )
+    if run_id is None:
+        return []
+    rows = (
+        scoped_query(db, PsCandidateWork, tenant)
+        .filter(PsCandidateWork.last_seen_run_id == run_id, PsCandidateWork.status != "dismissed")
+        .order_by(PsCandidateWork.candidate_key.asc())
+    )
+    return [{f: getattr(row, f) for f in _SUSTAINMENT_PROMPT_FIELDS} for row in rows.yield_per(1)]
+
+
+# ---------------------------------------------------------------------------
 # Brief assembly
 # ---------------------------------------------------------------------------
 
@@ -547,6 +598,7 @@ def execute_run(
                 upstream_text_by_agent,
                 structured_candidates,
                 upstream_findings=upstream_findings_for_synthesis(upstream_text_by_agent),
+                sustainment_candidates=load_sustainment_candidate_work(db, tenant, upstream_run_overrides),
             )
 
             for report in result.reports:

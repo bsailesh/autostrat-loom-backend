@@ -34,7 +34,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base
-from app.export.docx_builder import agent_label_for
 from app.models import (
     DiscoveredCandidate,
     Tenant,
@@ -296,19 +295,5 @@ class TestWhatTheSchemaMustNotCarry:
         assert "origin" in columns  # the join key lives here
 
 
-# ---------------------------------------------------------------------------
-# Export label
-# ---------------------------------------------------------------------------
-
-
-class TestCoverLabel:
-    def test_tech_regulation_has_a_cover_label(self):
-        assert agent_label_for("tech-regulation") == "Technology & Regulation"
-
-    def test_the_other_agents_labels_are_unchanged(self):
-        assert agent_label_for("market-insights") == "Market Insights"
-        assert agent_label_for("strategy-synthesis") == "Strategy Synthesis"
-
-    def test_an_unregistered_agent_type_still_raises(self):
-        with pytest.raises(ValueError):
-            agent_label_for("product-sustainment")
+# Export cover labels moved to tests/test_export_labels.py, which checks every
+# agent rather than borrowing an unbuilt one as the unregistered example.

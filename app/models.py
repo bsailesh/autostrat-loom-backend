@@ -1180,3 +1180,341 @@ class VocRunMeta(Base):
     # would put them back into a table the API serves.
     attribution_replacements: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ---------------------------------------------------------------------------
+# Agent 4 (Product Sustainment) — product structure, inventory, demand, risk
+#
+# The BOM is exactly three levels (LRU -> Level 1 -> Level 2) and both joins
+# are MANY-TO-MANY. The two mappings are uploaded as matrices but stored here
+# as edges (ps_lru_level1, ps_level1_level2); product_sustainment/compute.py
+# treats them as matrices and never traverses them as a tree.
+#
+# `agent_runs` and `agent_reports` are reused via agent_type
+# "product-sustainment". Every table below is new, so create_all is
+# sufficient to deploy all of this -- no ALTER TABLE on production.
+# ---------------------------------------------------------------------------
+
+
+class PsLru(Base):
+    __tablename__ = "ps_lrus"
+    __table_args__ = (UniqueConstraint("tenant_id", "lru_id", name="uq_ps_lru_tenant_id"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    lru_id: Mapped[str] = mapped_column(String, nullable=False)
+    lru_name: Mapped[str] = mapped_column(String, default="")
+    product_line: Mapped[str] = mapped_column(String, default="")
+    program: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[str] = mapped_column(String, default="")
+
+
+class PsLevel1(Base):
+    __tablename__ = "ps_level1"
+    __table_args__ = (UniqueConstraint("tenant_id", "level1_id", name="uq_ps_level1_tenant_id"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    level1_id: Mapped[str] = mapped_column(String, nullable=False)
+    level1_name: Mapped[str] = mapped_column(String, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+
+
+class PsLevel2(Base):
+    __tablename__ = "ps_level2"
+    __table_args__ = (UniqueConstraint("tenant_id", "level2_id", name="uq_ps_level2_tenant_id"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    level2_id: Mapped[str] = mapped_column(String, nullable=False)
+    level2_name: Mapped[str] = mapped_column(String, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    manufacturer: Mapped[str] = mapped_column(String, default="")
+    manufacturer_part_number: Mapped[str] = mapped_column(String, default="")
+
+
+class PsLruLevel1(Base):
+    """One cell of the LRU -> Level 1 matrix: quantity of an assembly per LRU."""
+    __tablename__ = "ps_lru_level1"
+    __table_args__ = (UniqueConstraint("tenant_id", "lru_id", "level1_id", name="uq_ps_lru_level1_edge"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    lru_id: Mapped[str] = mapped_column(String, nullable=False)
+    level1_id: Mapped[str] = mapped_column(String, nullable=False)
+    quantity_per_unit: Mapped[int] = mapped_column(nullable=False)
+
+
+class PsLevel1Level2(Base):
+    """One cell of the Level 1 -> Level 2 matrix: quantity of a component per assembly."""
+    __tablename__ = "ps_level1_level2"
+    __table_args__ = (UniqueConstraint("tenant_id", "level1_id", "level2_id", name="uq_ps_level1_level2_edge"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    level1_id: Mapped[str] = mapped_column(String, nullable=False)
+    level2_id: Mapped[str] = mapped_column(String, nullable=False)
+    quantity_per_unit: Mapped[int] = mapped_column(nullable=False)
+
+
+class PsInventory(Base):
+    """`location` and `form` are the customer's own strings, used verbatim --
+    no controlled list."""
+    __tablename__ = "ps_inventory"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    part_id: Mapped[str] = mapped_column(String, nullable=False)
+    part_level: Mapped[str] = mapped_column(String, nullable=False)  # lru | level1 | level2
+    location: Mapped[str] = mapped_column(String, default="")
+    form: Mapped[str] = mapped_column(String, default="")
+    quantity: Mapped[int] = mapped_column(nullable=False)
+    as_of: Mapped[str] = mapped_column(String, default="")
+
+
+class PsPipeline(Base):
+    __tablename__ = "ps_pipeline"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    part_id: Mapped[str] = mapped_column(String, nullable=False)
+    open_po_qty: Mapped[int] = mapped_column(default=0)
+    supplier_qty: Mapped[int] = mapped_column(default=0)
+    supplier_on_order_qty: Mapped[int] = mapped_column(default=0)
+    supplier_wip_qty: Mapped[int] = mapped_column(default=0)
+    as_of: Mapped[str] = mapped_column(String, default="")
+
+
+class PsLeadTime(Base):
+    __tablename__ = "ps_lead_times"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    part_id: Mapped[str] = mapped_column(String, nullable=False)
+    lead_time_days: Mapped[int] = mapped_column(nullable=False)
+
+
+class PsDemand(Base):
+    """One row per LRU per year. A missing row is ZERO demand that year, not
+    missing data; an LRU with no rows still appears in reporting."""
+    __tablename__ = "ps_demand"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    lru_id: Mapped[str] = mapped_column(String, nullable=False)
+    year: Mapped[int] = mapped_column(nullable=False)
+    quantity: Mapped[int] = mapped_column(nullable=False)
+
+
+class PsDirectDemand(Base):
+    """Spares or aftermarket demand at any level, ADDED to derived demand and
+    flowing downward through the matrices exactly as derived demand does."""
+    __tablename__ = "ps_direct_demand"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    part_id: Mapped[str] = mapped_column(String, nullable=False)
+    part_level: Mapped[str] = mapped_column(String, nullable=False)
+    year: Mapped[int] = mapped_column(nullable=False)
+    quantity: Mapped[int] = mapped_column(nullable=False)
+
+
+class PsRiskFlag(Base):
+    """`lifecycle_status` carries the manufacturer's own designation (NFND,
+    MXSTK, ...) as free text -- early warning, not yet EOL."""
+    __tablename__ = "ps_risk_flags"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    part_id: Mapped[str] = mapped_column(String, nullable=False)
+    risk_type: Mapped[str] = mapped_column(String, nullable=False)  # end_of_life | single_source | custom | at_risk_region
+    risk_detail: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(Text, default="")
+    source_date: Mapped[str] = mapped_column(String, default="")
+    lifecycle_status: Mapped[str] = mapped_column(String, default="")
+    last_time_buy_date: Mapped[str] = mapped_column(String, default="")  # ISO date, validated at ingest
+    last_delivery_date: Mapped[str] = mapped_column(String, default="")
+
+
+class PsQualifiedAlternate(Base):
+    """CUSTOMER-SUPPLIED ONLY: a second source already through the customer's
+    own qualification. Agent-found candidates never land here -- they live on
+    ps_candidate_work.candidate_alternates, labelled as candidates."""
+    __tablename__ = "ps_qualified_alternates"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    part_id: Mapped[str] = mapped_column(String, nullable=False)
+    alternate_part_id: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)  # qualified | in_qualification | approved_for_new_design_only
+    qualified_date: Mapped[str] = mapped_column(String, default="")
+
+
+class PsFleet(Base):
+    __tablename__ = "ps_fleet"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    unit_id: Mapped[str] = mapped_column(String, nullable=False)
+    lru_id: Mapped[str] = mapped_column(String, default="")
+    in_service_date: Mapped[str] = mapped_column(String, default="")
+    utilisation: Mapped[str] = mapped_column(String, default="")
+    environment: Mapped[str] = mapped_column(String, default="")
+    operator_segment: Mapped[str] = mapped_column(String, default="")
+
+
+class PsMaintenance(Base):
+    __tablename__ = "ps_maintenance"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    unit_id: Mapped[str] = mapped_column(String, nullable=False)
+    lru_id: Mapped[str] = mapped_column(String, default="")
+    event_date: Mapped[str] = mapped_column(String, default="")
+    event_type: Mapped[str] = mapped_column(String, default="")
+    time_in_service: Mapped[str] = mapped_column(String, default="")
+    downtime: Mapped[str] = mapped_column(String, default="")
+
+
+class PsConfiguration(Base):
+    __tablename__ = "ps_configuration"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    unit_id: Mapped[str] = mapped_column(String, nullable=False)
+    lru_id: Mapped[str] = mapped_column(String, default="")
+    as_maintained_config: Mapped[str] = mapped_column(Text, default="")
+    as_designed_baseline: Mapped[str] = mapped_column(Text, default="")
+
+
+class PsKnowledge(Base):
+    """Customer judgement; no data source produces it. Without it the
+    knowledge analysis is unavailable -- never inferred from headcount."""
+    __tablename__ = "ps_knowledge"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    capability: Mapped[str] = mapped_column(Text, nullable=False)
+    components_affected: Mapped[str] = mapped_column(Text, default="")
+    people_count: Mapped[int | None] = mapped_column(nullable=True)
+    documentation_status: Mapped[str] = mapped_column(String, default="")
+
+
+class PsFile(Base):
+    """The last upload of each structured file type (matrices and data
+    files), so GET /files shows what was loaded and why it failed."""
+    __tablename__ = "ps_files"
+    __table_args__ = (UniqueConstraint("tenant_id", "file_type", name="uq_ps_file_tenant_type"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    file_type: Mapped[str] = mapped_column(String, nullable=False)
+    filename: Mapped[str] = mapped_column(String, default="")
+    as_of: Mapped[str] = mapped_column(String, default="")
+    row_count: Mapped[int] = mapped_column(default=0)
+    validation_status: Mapped[str] = mapped_column(String, default="pending")  # valid | valid_with_warnings | invalid
+    issues: Mapped[list] = mapped_column(JSON, default=list)
+    columns: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PsEvidenceFile(Base):
+    """Free-text reliability and quality evidence. Same shape as
+    VocEvidenceFile, deliberately -- one pattern, not two."""
+    __tablename__ = "ps_evidence_files"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    file_type: Mapped[str] = mapped_column(String, nullable=False)
+    file_format: Mapped[str] = mapped_column(String, nullable=False)  # text | pdf | csv
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, default="")
+    size_bytes: Mapped[int] = mapped_column(default=0)
+    as_of: Mapped[str] = mapped_column(String, default="")
+    period_start: Mapped[str] = mapped_column(String, default="")
+    period_end: Mapped[str] = mapped_column(String, default="")
+    is_sample: Mapped[bool] = mapped_column(default=False)
+    sample_description: Mapped[str] = mapped_column(Text, default="")
+    row_unit: Mapped[str] = mapped_column(String, default="")
+    columns: Mapped[list] = mapped_column(JSON, default=list)
+    column_roles: Mapped[dict] = mapped_column(JSON, default=dict)
+    row_count: Mapped[int | None] = mapped_column(nullable=True)
+    page_count: Mapped[int | None] = mapped_column(nullable=True)
+    char_count: Mapped[int] = mapped_column(default=0)
+    ingest_status: Mapped[str] = mapped_column(String, default="pending")
+    issues: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PsEvidenceItem(Base):
+    __tablename__ = "ps_evidence_items"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    file_id: Mapped[str] = mapped_column(String, ForeignKey("ps_evidence_files.id"), index=True, nullable=False)
+    seq: Mapped[int] = mapped_column(nullable=False)
+    cells: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+
+
+class PsCandidateWork(Base):
+    """Mirrors TrCandidateWork, with the fields a runout needs. Agent 5 reads
+    these rows directly.
+
+    The numbers -- quantity_required, a runout work_date, and applicability
+    -- are written from compute.py, never from the model. The model names the
+    driver, the work implied and any candidate alternates.
+
+    `qualified_alternate_part_id` comes only from ps_qualified_alternates;
+    `candidate_alternates` are agent-found and are never qualified.
+
+    Additive, keyed by candidate_key; a re-run refreshes evidence fields but
+    never status or dismissal_reason, so a dismissal survives re-discovery."""
+    __tablename__ = "ps_candidate_work"
+    __table_args__ = (UniqueConstraint("tenant_id", "candidate_key", name="uq_ps_candidate_work_tenant_key"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    candidate_key: Mapped[str] = mapped_column(String, nullable=False)  # "PS-<part_id>"
+    part_id: Mapped[str] = mapped_column(String, nullable=False)
+    driver: Mapped[str] = mapped_column(Text, nullable=False)
+    work_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    date_basis: Mapped[str] = mapped_column(String, default="")  # runout | window_closes | none_established
+    date_absent_reason: Mapped[str] = mapped_column(Text, default="")
+    applicability: Mapped[dict] = mapped_column(JSON, default=dict)  # {"lrus": [...], "level1": [...]}
+    quantity_required: Mapped[int | None] = mapped_column(nullable=True)
+    quantity_basis: Mapped[str] = mapped_column(Text, default="")
+    qualified_alternate_part_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    candidate_alternates: Mapped[list] = mapped_column(JSON, default=list)
+    work_implied: Mapped[str] = mapped_column(String, nullable=False)  # last_time_buy | alternate_qualification | redesign | inventory_rebalance | monitor
+    work_implied_description: Mapped[str] = mapped_column(Text, default="")
+    classification: Mapped[str] = mapped_column(String, default="")
+    confidence: Mapped[str] = mapped_column(String, default="")
+    source: Mapped[str] = mapped_column(Text, default="")
+    source_date: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[str] = mapped_column(String, default="new")  # new | under_review | accepted | dismissed
+    dismissal_reason: Mapped[str] = mapped_column(Text, default="")
+    first_seen_run_id: Mapped[str | None] = mapped_column(String, ForeignKey("agent_runs.id"), nullable=True)
+    last_seen_run_id: Mapped[str | None] = mapped_column(String, ForeignKey("agent_runs.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class PsRunMeta(Base):
+    """Frozen at run time: the tier (drives the title and Word cover label),
+    the computation notes, and any candidate work dropped as incomplete."""
+    __tablename__ = "ps_run_meta"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    run_id: Mapped[str] = mapped_column(String, ForeignKey("agent_runs.id"), index=True, nullable=False, unique=True)
+    tier: Mapped[str] = mapped_column(String, nullable=False)
+    notes: Mapped[list] = mapped_column(JSON, default=list)
+    candidate_work_dropped: Mapped[list] = mapped_column(JSON, default=list)
+    # The complete computed position set. Reports carry only the most urgent
+    # rows (a 4,000-component table cannot live in report markdown), so the
+    # full filterable view reads from here.
+    horizon_years: Mapped[list] = mapped_column(JSON, default=list)
+    runout_rows: Mapped[list] = mapped_column(JSON, default=list)
+    insufficient_rows: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
