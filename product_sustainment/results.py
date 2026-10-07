@@ -18,6 +18,8 @@ from fractions import Fraction
 
 from product_sustainment.compute import (
     LEVEL2,
+    cascade,
+    composite_lru_l2,
     WATCH_MARGIN_MONTHS,
     PartPosition,
     SustainmentResult,
@@ -173,13 +175,24 @@ def exposure_table(result: SustainmentResult, data: SustainmentData, parts: list
     """Which LRUs each flagged component reaches, through which assemblies."""
     lines = [EXPOSURE_TABLE_HEADERS, "|---|---|---|---|"]
     by_id = {p.part_id: p for p in result.positions}
-    chosen = sorted((by_id[x] for x in parts if x in by_id and by_id[x].level == LEVEL2), key=_sort_key)
-    for p in chosen[:REPORT_MAX_CHART_PARTS]:
-        per_lru = {s.source: s.qty_per_unit for s in p.demand_shares if not s.source.startswith("direct:")}
-        for j in p.affected_level1:
+    level2_ids = {l.level2_id for l in data.level2}
+    # Positioned parts first, most urgent first; then flagged parts with no
+    # position (no inventory, say) -- their exposure through the BOM is real
+    # even without a runout date, so it comes straight from the matrices.
+    ordered = sorted((by_id[x] for x in parts if x in by_id and by_id[x].level == LEVEL2), key=_sort_key)
+    unpositioned = [x for x in parts if x not in by_id and x in level2_ids]
+    composite = composite_lru_l2(data.lru_l1, data.l1_l2) if unpositioned else {}
+    entries = [(p.part_id, p.affected_level1,
+                {s.source: s.qty_per_unit for s in p.demand_shares if not s.source.startswith("direct:")})
+               for p in ordered]
+    for part in unpositioned:
+        level1, lrus = cascade(part, LEVEL2, data.lru_l1, data.l1_l2)
+        entries.append((part, level1, {i: composite.get(i, {}).get(part, 0) for i in lrus}))
+    for part, level1, per_lru in entries[:REPORT_MAX_CHART_PARTS]:
+        for j in level1:
             for i in sorted(per_lru):
                 if data.lru_l1.get(i, {}).get(j):
-                    lines.append(f"| {p.part_id} | {j} | {i} | {per_lru[i]} |")
+                    lines.append(f"| {part} | {j} | {i} | {per_lru[i]} |")
     return "\n".join(lines)
 
 

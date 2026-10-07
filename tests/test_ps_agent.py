@@ -293,3 +293,14 @@ class TestFullRun:
         assert "(candidate)" in by_number[1]
         assert "## Inventory depletion (computed)" in by_number[8]
         assert result.candidate_work[0].quantity_required == 3320
+
+
+class TestExposureWithoutPosition:
+    def test_single_source_part_without_inventory_still_maps_its_exposure(self):
+        from product_sustainment import results as res
+        data = _data()
+        result = compute_sustainment(compute_inputs(data, TODAY))
+        section = res.computed_section("single_source", result, data)
+        # FPGA-A has no stock record, so no position -- but its reach is real.
+        assert "| FPGA-A | CCA-MC | AR-FIN | 2 |" in section
+        assert "| FPGA-A | CCA-SENS | AR-UTIL | 2 |" in section
