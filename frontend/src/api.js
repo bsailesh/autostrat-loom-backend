@@ -91,6 +91,45 @@ async function fetchDocx(path) {
   return { blob, filename };
 }
 
+// Multipart POST: same auth and error handling as apiFetch, without the JSON
+// content type (the browser sets the multipart boundary itself).
+async function postForm(path, fields) {
+  const session = getSession();
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || v === null || v === "") continue;
+    form.append(k, v instanceof Blob ? v : String(v));
+  }
+  const resp = await fetch(API_BASE + path, {
+    method: "POST",
+    headers: session ? { Authorization: "Bearer " + session.token } : {},
+    body: form,
+  });
+  if (resp.status === 401) {
+    clearSession();
+    window.dispatchEvent(new Event("loom:unauthorized"));
+    throw new ApiError("Your session has expired — please sign in again.", 401);
+  }
+  const body = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const detail = body && body.detail;
+    throw new ApiError(typeof detail === "string" ? detail : resp.statusText, resp.status);
+  }
+  return body;
+}
+
+// A CSV download (templates): returns { blob, filename } like fetchDocx.
+async function fetchCsv(path, fallbackName) {
+  const session = getSession();
+  const resp = await fetch(API_BASE + path, {
+    headers: session ? { Authorization: "Bearer " + session.token } : {},
+  });
+  if (!resp.ok) throw new ApiError(resp.statusText, resp.status);
+  const disposition = resp.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  return { blob: await resp.blob(), filename: match ? match[1] : fallbackName };
+}
+
 export const api = {
   base: API_BASE,
 
@@ -197,6 +236,37 @@ export const api = {
     listRunReports: (runId) => apiFetch(`/agents/voice-of-customer/runs/${runId}/reports`),
     getReport: (reportId) => apiFetch(`/agents/voice-of-customer/reports/${reportId}`),
     exportRunDocx: (runId) => fetchDocx(`/agents/voice-of-customer/runs/${runId}/export.docx`),
+  },
+
+  // Agent 4. Masters are GET/PUT lists; matrices and data files are
+  // multipart uploads that return their validation result; templates are
+  // generated server-side from the declared ids.
+  productSustainment: {
+    getMaster: (which) => apiFetch(`/agents/product-sustainment/structure/${which}`),
+    putMaster: (which, rows) =>
+      apiFetch(`/agents/product-sustainment/structure/${which}`, { method: "PUT", body: JSON.stringify(rows) }),
+    getSummary: () => apiFetch("/agents/product-sustainment/structure/summary"),
+    uploadMatrix: (which, file) => postForm(`/agents/product-sustainment/structure/matrix/${which}`, { file }),
+    downloadTemplate: (which) => fetchCsv(`/agents/product-sustainment/structure/templates/${which}`, `${which}_template.csv`),
+    uploadFile: (fileType, file, asOf) => postForm(`/agents/product-sustainment/files/${fileType}`, { file, as_of: asOf }),
+    listFiles: () => apiFetch("/agents/product-sustainment/files"),
+    getKnowledge: () => apiFetch("/agents/product-sustainment/knowledge"),
+    putKnowledge: (rows) =>
+      apiFetch("/agents/product-sustainment/knowledge", { method: "PUT", body: JSON.stringify(rows) }),
+    uploadEvidence: (file, fields = {}) => postForm("/agents/product-sustainment/evidence", { file, ...fields }),
+    listEvidence: () => apiFetch("/agents/product-sustainment/evidence"),
+    deleteEvidence: (id) => apiFetch(`/agents/product-sustainment/evidence/${id}`, { method: "DELETE" }),
+    getReadiness: () => apiFetch("/agents/product-sustainment/readiness"),
+    startRun: (payload) =>
+      apiFetch("/agents/product-sustainment/run", { method: "POST", body: JSON.stringify(payload || {}) }),
+    listRuns: () => apiFetch("/agents/product-sustainment/runs"),
+    getRun: (runId) => apiFetch(`/agents/product-sustainment/runs/${runId}`),
+    getRunout: (runId) => apiFetch(`/agents/product-sustainment/runs/${runId}/runout`),
+    listRunReports: (runId) => apiFetch(`/agents/product-sustainment/runs/${runId}/reports`),
+    getReport: (reportId) => apiFetch(`/agents/product-sustainment/reports/${reportId}`),
+    exportRunDocx: (runId) => fetchDocx(`/agents/product-sustainment/runs/${runId}/export.docx`),
+    listCandidateWork: (runId) =>
+      apiFetch("/agents/product-sustainment/candidate-work" + (runId ? `?run_id=${runId}` : "")),
   },
 
   strategySynthesis: {
