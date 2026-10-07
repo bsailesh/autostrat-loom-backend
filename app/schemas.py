@@ -931,3 +931,168 @@ class VocRunOut(BaseModel):
     operating_tier: str | None = None
     run_label: str | None = None
     sampling_notes: list[str] = Field(default_factory=list)
+
+
+# ---------- Product Sustainment agent (Agent 4) ----------
+
+
+class PsLruIn(BaseModel):
+    lru_id: str = Field(min_length=1, max_length=64)
+    lru_name: str = Field(default="", max_length=200)
+    product_line: str = Field(default="", max_length=200)
+    program: str = Field(default="", max_length=200)
+    status: str = Field(default="", max_length=100)
+
+    model_config = {"from_attributes": True}
+
+
+class PsLevel1In(BaseModel):
+    level1_id: str = Field(min_length=1, max_length=64)
+    level1_name: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+    model_config = {"from_attributes": True}
+
+
+class PsLevel2In(BaseModel):
+    level2_id: str = Field(min_length=1, max_length=64)
+    level2_name: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=2000)
+    manufacturer: str = Field(default="", max_length=200)
+    manufacturer_part_number: str = Field(default="", max_length=200)
+
+    model_config = {"from_attributes": True}
+
+
+class PsKnowledgeIn(BaseModel):
+    capability: str = Field(min_length=1, max_length=2000)
+    components_affected: str = Field(default="", max_length=2000)
+    people_count: int | None = Field(default=None, ge=0)
+    documentation_status: str = Field(default="", max_length=200)
+
+    model_config = {"from_attributes": True}
+
+
+class PsFileOut(BaseModel):
+    file_type: str
+    filename: str
+    as_of: str
+    row_count: int
+    validation_status: str
+    issues: list[dict]
+    columns: list[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PsStructureSummaryOut(BaseModel):
+    """The derived picture after upload. `parts_without_demand_path` is the
+    number that catches a bad matrix."""
+    lrus: int
+    level1: int
+    level2: int
+    lru_level1_edges: int
+    level1_level2_edges: int
+    parts_without_demand_path: list[str]
+
+
+class PsMatrixUploadOut(BaseModel):
+    file: PsFileOut
+    summary: PsStructureSummaryOut
+
+
+class PsReadinessItemOut(BaseModel):
+    """`consequence` is empty whenever `status` is "set" (b4f3282)."""
+    key: str
+    label: str
+    status: str
+    count: int
+    consequence: str
+
+
+class PsReadinessOut(BaseModel):
+    operating_tier: str  # exposure_scan | tier_1_partial | tier_1_substantial
+    tier_label: str
+    run_label: str
+    statement: str
+    items: list[PsReadinessItemOut]
+
+
+class PsEvidenceFileOut(BaseModel):
+    id: str
+    file_type: str
+    file_format: str
+    filename: str
+    size_bytes: int
+    as_of: str
+    period_start: str
+    period_end: str
+    is_sample: bool
+    sample_description: str
+    row_unit: str
+    columns: list[str]
+    column_roles: dict[str, str]
+    row_count: int | None
+    page_count: int | None
+    char_count: int
+    ingest_status: str
+    issues: list[dict]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProductSustainmentRunRequest(BaseModel):
+    """Optional execution tweaks. A run is never blocked: it degrades and
+    says so."""
+    model: str | None = Field(default=None, description="Optional model override")
+    max_searches: int | None = Field(default=None, ge=1, le=40)
+    research_rounds: int | None = Field(default=None, ge=1, le=4)
+
+
+class PsRunOut(BaseModel):
+    id: str
+    agent_type: str
+    subject: str
+    status: str
+    error: str | None = None
+    created_at: datetime
+    operating_tier: str | None = None
+    run_label: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    candidate_work_dropped: list[dict] = Field(default_factory=list)
+
+
+class PsCandidateWorkOut(BaseModel):
+    candidate_key: str
+    part_id: str
+    driver: str
+    work_date: str | None
+    date_basis: str
+    date_absent_reason: str
+    applicability: dict
+    quantity_required: int | None
+    quantity_basis: str
+    qualified_alternate_part_id: str | None
+    candidate_alternates: list[dict]
+    work_implied: str
+    work_implied_description: str
+    classification: str
+    confidence: str
+    source: str
+    source_date: str
+    status: str
+    dismissal_reason: str
+    first_seen_run_id: str | None
+    last_seen_run_id: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PsCandidateWorkPatchRequest(BaseModel):
+    """Triage only -- evidence fields are refreshed by the next run."""
+    status: Literal["new", "under_review", "accepted", "dismissed"]
+    dismissal_reason: str = Field(default="", max_length=2000)

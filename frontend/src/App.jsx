@@ -21,6 +21,11 @@ import VoiceOfCustomerEntry from "./voiceOfCustomer/VoiceOfCustomerEntry.jsx";
 import VoiceOfCustomerWorkspace from "./voiceOfCustomer/Workspace.jsx";
 import VoiceOfCustomerContextScreen from "./voiceOfCustomer/ContextScreen.jsx";
 import VoiceOfCustomerEvidenceScreen from "./voiceOfCustomer/EvidenceScreen.jsx";
+import ProductSustainmentEntry from "./productSustainment/ProductSustainmentEntry.jsx";
+import ProductSustainmentWorkspace from "./productSustainment/Workspace.jsx";
+import ProductSustainmentStructureScreen from "./productSustainment/StructureScreen.jsx";
+import ProductSustainmentDataScreen from "./productSustainment/DataScreen.jsx";
+import ProductSustainmentEvidenceScreen from "./productSustainment/EvidenceScreen.jsx";
 import { Settings as SettingsIcon } from "lucide-react";
 
 function FullPageLoader() {
@@ -86,6 +91,14 @@ export default function App() {
         <Route path="/agents/voice-of-customer/workspace" element={<VoiceOfCustomerWorkspace />} />
         <Route path="/agents/voice-of-customer/runs/:runId" element={<VoiceOfCustomerWorkspace />} />
         <Route path="/agents/voice-of-customer/runs/:runId/reports/:reportId" element={<VoiceOfCustomerWorkspace />} />
+
+        <Route path="/agents/product-sustainment" element={<ProductSustainmentEntry />} />
+        <Route path="/agents/product-sustainment/structure" element={<ProductSustainmentStructureScreen />} />
+        <Route path="/agents/product-sustainment/data" element={<ProductSustainmentDataScreen />} />
+        <Route path="/agents/product-sustainment/evidence" element={<ProductSustainmentEvidenceScreen />} />
+        <Route path="/agents/product-sustainment/workspace" element={<ProductSustainmentWorkspace />} />
+        <Route path="/agents/product-sustainment/runs/:runId" element={<ProductSustainmentWorkspace />} />
+        <Route path="/agents/product-sustainment/runs/:runId/reports/:reportId" element={<ProductSustainmentWorkspace />} />
 
         <Route
           path="/settings"

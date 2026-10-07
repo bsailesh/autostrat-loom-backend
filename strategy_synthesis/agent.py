@@ -265,9 +265,12 @@ class StrategySynthesisAgent:
         brief_text: str,
         upstream_text_by_agent: dict[str, str],
         structured_candidates: list[dict] | None = None,
+        sustainment_candidates: list[dict] | None = None,
     ) -> Pass1Output:
         system = pass1_system_prompt()
-        user_prompt = pass1_user_prompt(brief_text, upstream_text_by_agent, structured_candidates)
+        user_prompt = pass1_user_prompt(
+            brief_text, upstream_text_by_agent, structured_candidates, sustainment_candidates
+        )
 
         tool_name = "emit_pass1_output"
         tool_def = {
@@ -397,6 +400,7 @@ class StrategySynthesisAgent:
         upstream_text_by_agent: dict[str, str],
         structured_candidates: list[dict] | None = None,
         upstream_findings: dict[str, str] | None = None,
+        sustainment_candidates: list[dict] | None = None,
     ) -> AgentRunResult:
         """`structured_candidates` is Agent 3's candidate work, read as rows
         from tr_candidate_work by the service layer and handed to Pass 1
@@ -407,11 +411,18 @@ class StrategySynthesisAgent:
         `upstream_findings` is each upstream agent's "Findings for synthesis"
         section, verbatim (strategy_synthesis/upstream.py). Pass 1 already
         sees it inside the upstream text; it is also handed to the decision
-        brief's Pass 2 call, which otherwise sees no upstream text at all."""
+        brief's Pass 2 call, which otherwise sees no upstream text at all.
+
+        `sustainment_candidates` is Agent 4's candidate work, read as rows from
+        ps_candidate_work -- additive to Agent 3's, in its own prompt section."""
         brief_text = render_brief_text(brief)
 
         pass1_output = self._call_pass1(
-            brief, brief_text, upstream_text_by_agent, structured_candidates
+            brief,
+            brief_text,
+            upstream_text_by_agent,
+            structured_candidates,
+            sustainment_candidates=sustainment_candidates,
         )
 
         computed = self._compute(brief, pass1_output)

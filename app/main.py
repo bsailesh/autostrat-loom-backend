@@ -5,7 +5,7 @@ from app.config import get_settings
 from app.database import Base, engine
 from app.routers import (
     tenants, initiatives, signals, assets, roadmaps, briefs, audit, auth, contact,
-    invites, market_insights, strategy_synthesis, tech_regulation, voice_of_customer,
+    invites, market_insights, strategy_synthesis, tech_regulation, voice_of_customer, product_sustainment,
 )
 
 # Creates tables on startup if they don't exist yet. Fine for SQLite/dev.
@@ -38,6 +38,7 @@ app.include_router(market_insights.router)
 app.include_router(strategy_synthesis.router)
 app.include_router(tech_regulation.router)
 app.include_router(voice_of_customer.router)
+app.include_router(product_sustainment.router)
 app.include_router(contact.router)
 app.include_router(tenants.router)
 app.include_router(initiatives.router)

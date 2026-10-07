@@ -91,10 +91,48 @@ look as though Tech & Regulation never surfaced it.
 """
 
 
+def _sustainment_candidate_section(sustainment_candidates: list[dict] | None) -> str:
+    """Agent 4's candidate work, handed to Pass 1 pre-structured -- rows from
+    `ps_candidate_work`, additive to the Tech & Regulation section above and
+    to Pass 1's own discovery. Its date, quantity and affected LRUs were
+    computed in code from the customer's BOM, inventory and demand, so they
+    are authoritative in a way a model-derived figure is not."""
+    if not sustainment_candidates:
+        return ""
+
+    rows = json.dumps(sustainment_candidates, indent=2, default=str)
+    return f"""
+## Pre-structured candidate work (from Product Sustainment)
+
+These are already-structured candidate work items from the selected upstream
+Product Sustainment run. Each names an at-risk part, its driver, a date (runout
+month or last-time-buy close, whichever binds first, or a stated reason there is
+none), the quantity required to cover demand through the end of the supplied
+forecast horizon, and EVERY LRU the part reaches.
+
+{rows}
+
+Carry each into `candidates` using its own key verbatim (PS-<part>), and populate
+`driver`, `work_date`, `date_basis` and `source_candidate_key` from the row. Set
+`origin` to "Product Sustainment — candidate work <key>". The date, quantity and
+affected LRUs were computed from the customer's own data -- do not re-derive them.
+
+`qualified_alternate_part_id` is a customer-qualified second source: phase-out is
+then a sourcing change. `candidate_alternates` are agent-found and NOT qualified:
+phase-out is then a qualification project. Neither present means redesign or
+accept the risk. These are different pieces of work; do not collapse them.
+
+Product Sustainment supplies no recommendation between buying and phasing out --
+that weighing is this pass's job. A candidate you judge not worth carrying forward
+still appears, with your reasoning in `evidence_summary`.
+"""
+
+
 def pass1_user_prompt(
     brief_text: str,
     upstream_text_by_agent: dict[str, str],
     structured_candidates: list[dict] | None = None,
+    sustainment_candidates: list[dict] | None = None,
 ) -> str:
     upstream_sections = "\n\n".join(
         f"### Upstream agent: {agent_type}\n\n{text}" for agent_type, text in upstream_text_by_agent.items()
@@ -108,7 +146,7 @@ def pass1_user_prompt(
 ## Upstream agent reports
 
 {upstream_sections}
-{_structured_candidate_section(structured_candidates)}
+{_structured_candidate_section(structured_candidates)}{_sustainment_candidate_section(sustainment_candidates)}
 Produce the Pass 1 structured output: candidates, per-project dimension
 scores (with objectives_served), criterion substitutions, and inferred
 dependencies."""

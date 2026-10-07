@@ -6,7 +6,6 @@ import {
   Wrench,
   Sparkles,
   Play,
-  Plus,
   Settings as SettingsIcon,
   AlertTriangle,
 } from "lucide-react";
@@ -18,14 +17,9 @@ import { useMarketInsightsStatus } from "../marketInsights/useMarketInsights.js"
 import { useStrategySynthesisStatus } from "../strategySynthesis/useStrategySynthesis.js";
 import { useTechRegulationStatus } from "../techRegulation/useTechRegulation.js";
 import { useVoiceOfCustomerStatus } from "../voiceOfCustomer/useVoiceOfCustomer.js";
+import { useProductSustainmentStatus } from "../productSustainment/useProductSustainment.js";
 import { useRunWithFiscalYear, CANCELLED_MESSAGE } from "../strategySynthesis/useRunWithFiscalYear.jsx";
 import { relativeTime } from "../lib/time.js";
-
-// Only Market Insights has a backend. The rest render in the reference's
-// "Not subscribed" state and are intentionally inert.
-const PLACEHOLDER_AGENTS = [
-  { id: "sustainment", name: "Product sustainment", icon: Wrench, blurb: "Quality, obsolescence and reliability needs" },
-];
 
 export default function HomeDashboard() {
   const { session } = useAuth();
@@ -33,6 +27,7 @@ export default function HomeDashboard() {
   const strategy = useStrategySynthesisStatus();
   const techReg = useTechRegulationStatus();
   const voc = useVoiceOfCustomerStatus();
+  const ps = useProductSustainmentStatus();
 
   return (
     <>
@@ -43,15 +38,13 @@ export default function HomeDashboard() {
             <p style={{ fontWeight: 700, fontSize: 18, margin: "0 0 2px" }}>Your agents</p>
             <p style={{ fontSize: 13, color: theme.textSecondary, margin: 0 }}>Complexity in. Clarity out.</p>
           </div>
-          <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>4 of 5 active</p>
+          <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>5 of 5 active</p>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, maxWidth: 720 }}>
           <MarketInsightsCard mi={mi} />
           <VoiceOfCustomerCard voc={voc} />
-          {PLACEHOLDER_AGENTS.map((def) => (
-            <NotSubscribedCard key={def.id} def={def} />
-          ))}
+          <ProductSustainmentCard ps={ps} />
         </div>
 
         <TechRegulationCard tr={techReg} />
@@ -182,19 +175,83 @@ function MarketInsightsCard({ mi }) {
   );
 }
 
-function NotSubscribedCard({ def }) {
-  const Icon = def.icon;
+function ProductSustainmentCard({ ps }) {
+  const navigate = useNavigate();
+  const { latestRun, active, loading, error, operatingTier } = ps;
+
+  let badge;
+  if (loading) badge = <Spinner size={12} />;
+  else if (active)
+    badge = (
+      <Badge tone="accent">
+        <Spinner size={10} /> Running
+      </Badge>
+    );
+  else if (latestRun?.status === "failed") badge = <Badge tone="danger">Last run failed</Badge>;
+  else badge = <Badge tone="success">Active</Badge>;
+
+  async function onRun(e) {
+    e.stopPropagation();
+    // Never blocked -- but with no BOM the run is an obsolescence and
+    // exposure scan with no runout dates, worth saying before it runs.
+    if (operatingTier === "exposure_scan") {
+      const ok = window.confirm(
+        "No BOM matrices are loaded, so this run will be an obsolescence and exposure scan with no runout dates, " +
+          "not a sustainment analysis. Reports will be titled as such.\n\nRun anyway?"
+      );
+      if (!ok) return;
+    }
+    try {
+      const run = await ps.startRun();
+      navigate(`/agents/product-sustainment/runs/${run.id}`);
+    } catch (err) {
+      alert(err.message || "Couldn't start the run.");
+    }
+  }
+
+  const tierNote =
+    operatingTier === "exposure_scan"
+      ? "Exposure scan only — no BOM yet"
+      : operatingTier === "tier_1_partial"
+      ? "Tier 1 partial"
+      : operatingTier === "tier_1_substantial"
+      ? "Tier 1 substantial"
+      : null;
+
+  const go = (path) => (e) => {
+    e.stopPropagation();
+    navigate(path);
+  };
+
   return (
-    <Card style={{ background: theme.surfaceMuted, opacity: 0.9 }}>
+    <Card onClick={() => navigate("/agents/product-sustainment")}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <Icon size={19} color={theme.textMuted} />
-        <Badge tone="muted">Not subscribed</Badge>
+        <Wrench size={19} color={theme.orange} />
+        {badge}
       </div>
-      <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 4px", color: theme.textSecondary }}>{def.name}</p>
-      <p style={{ fontSize: 12, color: theme.textMuted, margin: "0 0 12px" }}>{def.blurb}</p>
-      <Button small icon={Plus} disabled title="No backend yet">
-        Add agent
-      </Button>
+      <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 4px" }}>Product sustainment</p>
+      <p style={{ fontSize: 12, color: theme.textSecondary, margin: "0 0 10px" }}>
+        Component runout across your BOM, last-time-buy timing, and every LRU an at-risk part reaches.
+      </p>
+      {error ? (
+        <p style={{ fontSize: 12, color: theme.danger, margin: "0 0 10px" }}>{error}</p>
+      ) : (
+        <p style={{ fontSize: 11.5, color: theme.textMuted, margin: "0 0 10px" }}>
+          {active
+            ? "Run in progress…"
+            : latestRun
+            ? `${latestRun.status === "failed" ? "Last run failed" : "Last run"} · ${relativeTime(latestRun.created_at)}`
+            : "No runs yet"}
+          {tierNote && !active ? ` · ${tierNote}` : ""}
+        </p>
+      )}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <Button small icon={active ? undefined : Play} disabled={active} onClick={onRun}>
+          {active ? "Running…" : "Run"}
+        </Button>
+        <Button small onClick={go("/agents/product-sustainment/structure")}>Structure</Button>
+        <Button small onClick={go("/agents/product-sustainment/data")}>Data</Button>
+      </div>
     </Card>
   );
 }
