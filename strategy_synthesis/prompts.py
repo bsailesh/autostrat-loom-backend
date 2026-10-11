@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 from strategy_synthesis import standards
+from strategy_synthesis.brief import DecisionBrief
 from strategy_synthesis.reports import ReportSpec
 from strategy_synthesis.schemas import Pass1Output
 
@@ -150,6 +151,40 @@ def pass1_user_prompt(
 Produce the Pass 1 structured output: candidates, per-project dimension
 scores (with objectives_served), criterion substitutions, and inferred
 dependencies."""
+
+
+def upstream_summary_system_prompt(agent_type: str) -> str:
+    must_keep = standards.UPSTREAM_SUMMARY_MUST_KEEP.get(agent_type, "")
+    return "\n\n".join(
+        part for part in (standards.UPSTREAM_SUMMARY_PURPOSE, standards.UPSTREAM_SUMMARY_RULES, must_keep) if part
+    )
+
+
+def _summary_scoring_context(brief: DecisionBrief | None) -> str:
+    """The parts of the brief the keep/drop filter is applied against: the
+    criteria Pass 1 scores, the projects it scores, the objectives
+    alignment is scored to, and what's already proposed. Names only -- the
+    summarizer needs to recognise relevance, not to score."""
+    if brief is None:
+        return ""
+    lines = ["## What Pass 1 will score (apply the filter against this)", ""]
+    if brief.weights:
+        lines.append("Scoring criteria (weight):")
+        lines += [f"- {c} ({w:g})" for c, w in sorted(brief.weights.items(), key=lambda kv: -kv[1])]
+    if brief.projects:
+        lines.append("Committed projects:")
+        lines += [f"- {p.project_key}: {p.name}" for p in brief.projects]
+    if brief.objectives:
+        lines.append("Strategic objectives:")
+        lines += [f"- {o.key}: {o.text}" for o in brief.objectives]
+    if brief.proposed_projects:
+        lines.append("Customer-proposed candidates:")
+        lines += [f"- {p.key}: {p.name}" for p in brief.proposed_projects]
+    return "\n".join(lines) + "\n\n" if len(lines) > 2 else ""
+
+
+def upstream_summary_user_prompt(agent_type: str, text: str, brief: DecisionBrief | None = None) -> str:
+    return f"{_summary_scoring_context(brief)}## Report pack to condense\n\nAgent: {agent_type}\n\n{text}"
 
 
 def pass2_system_prompt() -> str:

@@ -435,6 +435,50 @@ class TestSummarizeUpstreamAgent:
             with pytest.raises(UpstreamSummaryError):
                 agent.summarize_upstream_agent("market-insights", "x" * 154_379)
 
+    def test_truncation_error_reports_source_size_separately_from_output(self):
+        """The 2026-10-11 VoC failure read as '88K chars in, 32K tokens out'
+        when 88K was the summary's own length -- the source size was missing."""
+        agent = StrategySynthesisAgent(_settings())
+        truncated = self._response("y" * 88_092, stop_reason="max_tokens", output_tokens=32000)
+        with patch.object(agent._client.messages, "stream", _streaming(truncated)):
+            with pytest.raises(UpstreamSummaryError) as exc_info:
+                agent.summarize_upstream_agent("voice-of-customer", "x" * 160_000)
+        assert "160,000 source chars in" in str(exc_info.value)
+        assert "88,092 chars of summary text out" in str(exc_info.value)
+
+    def test_prompt_states_pass1s_two_uses_as_the_filter_and_a_length(self):
+        agent = StrategySynthesisAgent(_settings())
+        with patch.object(agent._client.messages, "stream", _streaming(self._response("s"))) as stream:
+            agent.summarize_upstream_agent("market-insights", "report")
+        system = stream.call_args.kwargs["system"]
+        assert "Scores committed projects against the scoring criteria" in system
+        assert "Discovers candidate projects" in system
+        assert "bears on neither, drop it" in system
+        assert "including one that overlaps a committed project" in system
+        assert "3,000 words" in system
+        assert "Voice of Customer" not in system  # must-keeps are per agent
+
+    def test_voc_must_keeps_are_named(self):
+        agent = StrategySynthesisAgent(_settings())
+        with patch.object(agent._client.messages, "stream", _streaming(self._response("s"))) as stream:
+            agent.summarize_upstream_agent("voice-of-customer", "report")
+        system = stream.call_args.kwargs["system"]
+        assert "Every pain point" in system and "severity" in system and "segments" in system
+        assert "Every belief-test outcome" in system
+        assert "Corroborated / Contradicted / Not found" in system
+
+    def test_brief_supplies_the_criteria_and_projects_the_filter_runs_against(self):
+        agent = StrategySynthesisAgent(_settings())
+        brief = _bottleneck_brief()
+        with patch.object(agent._client.messages, "stream", _streaming(self._response("s"))) as stream:
+            agent.summarize_upstream_agent("voice-of-customer", "the pack", brief)
+        user = stream.call_args.kwargs["messages"][0]["content"]
+        for criterion in brief.weights:
+            assert f"- {criterion} (" in user
+        for p in brief.projects:
+            assert f"- {p.project_key}: {p.name}" in user
+        assert user.rstrip().endswith("the pack")
+
     def test_whitespace_only_summary_raises(self):
         agent = StrategySynthesisAgent(_settings())
         blank = self._response("   \n\n  ", stop_reason="end_turn", output_tokens=6)

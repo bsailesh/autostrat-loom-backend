@@ -34,7 +34,14 @@ from pydantic import ValidationError
 from strategy_synthesis import compute
 from strategy_synthesis.brief import DecisionBrief, render_brief_text
 from strategy_synthesis.config import Settings
-from strategy_synthesis.prompts import pass1_system_prompt, pass1_user_prompt, pass2_system_prompt, pass2_user_prompt
+from strategy_synthesis.prompts import (
+    pass1_system_prompt,
+    pass1_user_prompt,
+    pass2_system_prompt,
+    pass2_user_prompt,
+    upstream_summary_system_prompt,
+    upstream_summary_user_prompt,
+)
 from strategy_synthesis.reports import REPORTS, ReportSpec
 from strategy_synthesis.schemas import Pass1Candidate, Pass1Output
 
@@ -64,6 +71,13 @@ class UpstreamSummaryError(Exception):
 # handed Pass 1 its "[Note: ... was summarized before analysis.]" header
 # followed by nothing. A complete summary of that pack measures ~21.8k output
 # tokens, so the ceiling is set above it rather than at it.
+#
+# That ~21.8k was itself the symptom: under 2x compression, because the old
+# prompt asked to preserve every cited fact and named no length. A Voice of
+# Customer pack then hit 32k outright (2026-10-11). The prompt now filters to
+# what Pass 1 uses and targets ~3,000 words, so this ceiling is a guard
+# against a runaway summary, not a budget to be grown into -- if a pack hits
+# it, fix the prompt before raising the number.
 UPSTREAM_SUMMARY_MAX_TOKENS = 32000
 
 # The one report that receives upstream "Findings for synthesis" verbatim:
@@ -208,25 +222,24 @@ class StrategySynthesisAgent:
     # docstring: deciding *when* to call this is the router's job).
     # -----------------------------------------------------------------
 
-    def summarize_upstream_agent(self, agent_type: str, text: str) -> str:
-        """Compress one oversized upstream agent's report text before it's
-        folded into Pass 1's prompt, preserving cited facts and their
-        confidence/classification tags. Called by the router when that
-        agent's content exceeds its size threshold -- never called from
-        `run()` itself, which takes upstream text as already-prepared.
+    def summarize_upstream_agent(self, agent_type: str, text: str, brief: DecisionBrief | None = None) -> str:
+        """Condense one oversized upstream agent's report text for Pass 1,
+        keeping the findings that bear on a criterion score or a candidate
+        and dropping the rest (standards.UPSTREAM_SUMMARY_PURPOSE). `brief`
+        supplies the criteria, projects and objectives that filter is
+        applied against. Called by the router when that agent's content
+        exceeds its size threshold -- never called from `run()` itself,
+        which takes upstream text as already-prepared. The router removes
+        any "Findings for synthesis" section first; it is carried verbatim,
+        not summarised.
 
         Raises UpstreamSummaryError rather than returning a partial summary:
         see UPSTREAM_SUMMARY_MAX_TOKENS."""
         with self._client.messages.stream(
             model=self._model,
             max_tokens=UPSTREAM_SUMMARY_MAX_TOKENS,
-            system=(
-                "Summarize the following analyst report for use as input to another agent. "
-                "Preserve every cited fact, finding, and its confidence/classification tag "
-                "(FACT/OBSERVATION/INTERPRETATION/FORECAST/UNKNOWN, High/Medium/Low). "
-                "Do not add claims that are not in the source text."
-            ),
-            messages=[{"role": "user", "content": f"Agent: {agent_type}\n\n{text}"}],
+            system=upstream_summary_system_prompt(agent_type),
+            messages=[{"role": "user", "content": upstream_summary_user_prompt(agent_type, text, brief)}],
         ) as stream:
             response = stream.get_final_message()
 
@@ -243,8 +256,9 @@ class StrategySynthesisAgent:
         if response.stop_reason == "max_tokens":
             raise UpstreamSummaryError(
                 f"{agent_type} summary hit the {UPSTREAM_SUMMARY_MAX_TOKENS}-token ceiling "
-                f"(stop_reason=max_tokens, {response.usage.output_tokens} output tokens, "
-                f"{len(summary)} chars of text); a truncated summary silently drops the "
+                f"(stop_reason=max_tokens, {response.usage.output_tokens} output tokens; "
+                f"{len(text):,} source chars in, {len(summary):,} chars of summary text out "
+                "before the cut); a truncated summary silently drops the "
                 "evidence Pass 1 would have cited"
             )
         if not summary.strip():

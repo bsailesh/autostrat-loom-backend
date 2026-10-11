@@ -50,7 +50,11 @@ from strategy_synthesis.brief import (
 )
 from strategy_synthesis.config import Settings as AgentSettings
 from strategy_synthesis.schemas import Pass1Candidate
-from strategy_synthesis.upstream import extract_findings_for_synthesis, reattach_findings
+from strategy_synthesis.upstream import (
+    extract_findings_for_synthesis,
+    reattach_findings,
+    strip_findings_for_synthesis,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -197,12 +201,15 @@ def load_upstream_text(
     tenant: Tenant,
     agent: StrategySynthesisAgent,
     overrides: dict[str, str] | None,
+    brief: DecisionBrief | None = None,
 ) -> dict[str, str]:
     """One agent's full report-pack text at a time, cursor-iterated -- never
     all upstream agents' content held in memory simultaneously. Summarizes
     (via `agent.summarize_upstream_agent`, an LLM call) only the agents whose
     pack exceeds the threshold; this function only decides *when* to call it,
-    per strategy_synthesis/agent.py's own division of responsibility."""
+    per strategy_synthesis/agent.py's own division of responsibility.
+    `brief` is passed through to the summarizer, which filters to what bears
+    on the criteria and projects it names."""
     overrides = overrides or {}
     result: dict[str, str] = {}
     for agent_type in _discover_upstream_agent_types(db, tenant):
@@ -226,8 +233,12 @@ def load_upstream_text(
             # Extracted before summarising and re-attached after, verbatim:
             # a "Findings for synthesis" section exists so findings are not
             # lost, and the summarizer preserves facts but not sections.
+            # Stripped from what the summarizer sees, so it is neither
+            # summarised twice nor paraphrased beside its verbatim copy.
             findings = extract_findings_for_synthesis(text)
-            summarized = agent.summarize_upstream_agent(agent_type, text)
+            summarized = agent.summarize_upstream_agent(
+                agent_type, strip_findings_for_synthesis(text), brief
+            )
             text = (
                 f"[Note: this agent's {total_chars:,}-character report pack was "
                 f"summarized before analysis.]\n\n{reattach_findings(summarized, findings)}"
@@ -588,7 +599,7 @@ def execute_run(
             agent = StrategySynthesisAgent(settings)
 
             brief = assemble_brief(db, tenant, fiscal_year)
-            upstream_text_by_agent = load_upstream_text(db, tenant, agent, upstream_run_overrides)
+            upstream_text_by_agent = load_upstream_text(db, tenant, agent, upstream_run_overrides, brief)
 
             structured_candidates = load_structured_candidate_work(
                 db, tenant, upstream_run_overrides

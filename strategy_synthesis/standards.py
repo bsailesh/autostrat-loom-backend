@@ -261,3 +261,89 @@ would destroy -- present the tension, don't resolve it.
 preserve that order and state the ordering basis so a reader does not mistake
 it for a ranking. Do not re-sort by urgency or by your own judgment of
 importance."""
+
+
+# ---------------------------------------------------------------------------
+# Upstream summarisation -- not from agent5_prompt_draft_v2.md; written
+# 2026-10-11 after a Voice of Customer pack hit the summary ceiling. The old
+# one-line instruction ("preserve every cited fact") named no reader, no use
+# and no length, so it compressed under 2x: a near-copy, not a summary.
+# ---------------------------------------------------------------------------
+
+UPSTREAM_SUMMARY_PURPOSE = """\
+You are condensing one upstream analyst agent's report pack for the Strategy
+Synthesis agent's scoring pass (Pass 1). Pass 1 never sees the full pack --
+only what you write. It does exactly two things with it:
+
+1. **Scores committed projects against the scoring criteria.** Each score
+   cites upstream evidence and carries its classification and confidence.
+2. **Discovers candidate projects** -- work the evidence suggests that is not
+   on the roadmap -- each with the evidence that it should exist.
+
+That is the filter. For every finding in the pack, ask: does it bear on how a
+committed project scores against a criterion, or does it name or support a
+candidate? If yes, keep it. If it bears on neither, drop it, however well
+evidenced or interesting it is."""
+
+UPSTREAM_SUMMARY_RULES = """\
+## Keeping a finding
+
+A kept finding keeps what Pass 1 needs to cite it:
+- the claim itself, with its numbers, counts, dates, units and named entities
+  (products, parts, segments, customers, regulations) exactly as the source
+  gives them
+- its classification (FACT / OBSERVATION / INTERPRETATION / FORECAST /
+  UNKNOWN) and confidence (High / Medium / Low), unchanged
+- its source or basis, briefly -- enough to tell a counted figure from an
+  estimate, and one source from several
+
+Never strengthen a claim, raise its confidence, or merge two findings into one
+that is stronger than either. Do not add claims that are not in the source.
+
+**Every opportunity, candidate or proposed piece of work the pack names is
+kept as its own entry**, with its evidence and any ratings the source gives
+it -- including one that overlaps a committed project (say which project, and
+how it differs) and one that competes with another opportunity (keep both and
+say they compete). Deciding that an opportunity is already covered, or not
+worth pursuing, is Pass 1's judgment, not yours.
+
+## What to drop
+
+- Findings that bear on no criterion and no candidate
+- Repetition: the pack is several reports, and they restate one another.
+  Keep each finding once, at its most specific
+- Methodology narrative, report framing, executive-summary prose, and
+  navigation text -- keep only a one-line note of method where it changes how
+  far a number can be trusted (a sample versus a full count)
+- Verbatim quotations: replace each with what it evidences and how many sources
+  say it, unless a quotation is the only evidence for a kept finding
+
+## Length
+
+Aim for about 3,000 words; never more than 5,000. Use terse bullets grouped
+under short headings, not prose. If the pack has more relevant findings than
+fit, keep the ones bearing on the most heavily weighted criteria and the
+best-evidenced candidates, and end with one line naming what kind of material
+was left out."""
+
+# Keyed by upstream agent_type string -- this package imports nothing from
+# the agents themselves. An agent absent here gets the general filter only.
+UPSTREAM_SUMMARY_MUST_KEEP: dict[str, str] = {
+    "voice-of-customer": """\
+## Must keep from this agent, whatever the length
+
+Voice of Customer is in the pipeline to make the customer value criterion rest
+on customer evidence rather than a substitution from market-level demand.
+Dropping these removes the reason it ran:
+
+- **Every pain point or problem cluster**, with its severity, the segments it
+  is attributed to, and its frequency or count where the source gives one
+  (stating whether that count is a census figure or read off a sample)
+- **Every belief-test outcome** -- each of the customer's stated beliefs with
+  its label exactly as given (Corroborated / Contradicted / Not found, and
+  which kind of Not found), and for a Contradicted belief what the evidence
+  says instead
+
+Shorten their wording if you must; never drop one, merge two, or drop the
+severity, segment or outcome label.""",
+}

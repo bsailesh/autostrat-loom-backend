@@ -39,7 +39,7 @@ from strategy_synthesis.config import Settings
 from strategy_synthesis.prompts import pass1_user_prompt, pass2_user_prompt
 from strategy_synthesis.reports import REPORTS as A5_REPORTS
 from strategy_synthesis.schemas import Pass1Output
-from strategy_synthesis.upstream import extract_findings_for_synthesis
+from strategy_synthesis.upstream import extract_findings_for_synthesis, strip_findings_for_synthesis
 from voice_of_customer.reports import FINDINGS_FOR_SYNTHESIS_HEADING
 
 engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
@@ -132,6 +132,21 @@ class TestFindingsSurviveIntoPass1:
         assert "not summarised" in text
         assert FINDING in pass1_user_prompt("brief", upstream)
 
+    def test_section_is_stripped_from_what_the_summarizer_sees(self, db):
+        """Carried verbatim, so summarising it too would spend output tokens
+        and put a paraphrase in Pass 1's input beside the original."""
+        tenant = _tenant(db)
+        _voc_run(db, tenant, filler_chars=UPSTREAM_SUMMARIZE_THRESHOLD_CHARS + 1)
+        agent = MagicMock()
+        agent.summarize_upstream_agent.return_value = "Compressed."
+        brief = MagicMock()
+        upstream = load_upstream_text(db, tenant, agent, None, brief)
+        agent_type, sent, sent_brief = agent.summarize_upstream_agent.call_args.args
+        assert FINDING not in sent and FINDINGS_FOR_SYNTHESIS_HEADING not in sent
+        assert "## Governing Insight" in sent and "## Recommended actions" in sent
+        assert sent_brief is brief
+        assert upstream["voice-of-customer"].count(FINDING) == 1
+
 
 class TestExtraction:
     def test_section_ends_at_next_level_2_heading(self):
@@ -141,6 +156,14 @@ class TestExtraction:
         text = f"{FINDINGS_FOR_SYNTHESIS_HEADING}\n\n### Lead times\n{FINDING}\n\n## Next\nno"
         assert "### Lead times" in extract_findings_for_synthesis(text)
         assert "no" not in extract_findings_for_synthesis(text).split(FINDING)[1]
+
+    def test_strip_removes_every_section_and_keeps_the_rest(self):
+        text = f"# Pack\n\n{REPORT_1}\n\n{FINDINGS_FOR_SYNTHESIS_HEADING}\n\n### Sub\nsecond\n"
+        stripped = strip_findings_for_synthesis(text)
+        assert FINDINGS_FOR_SYNTHESIS_HEADING not in stripped
+        assert FINDING not in stripped and "second" not in stripped
+        assert "## Governing Insight" in stripped and "None the evidence supports." in stripped
+        assert strip_findings_for_synthesis("## Key Insights\n- a") == "## Key Insights\n- a"
 
     def test_no_section_extracts_nothing(self):
         assert extract_findings_for_synthesis("## Key Insights\n- a") == ""
