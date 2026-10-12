@@ -148,7 +148,7 @@ class TestLoadUpstreamText:
 
         result = load_upstream_text(db, tenant, agent, overrides=None)
 
-        agent.summarize_upstream_agent.assert_called_once_with("market-insights", big_content)
+        agent.summarize_upstream_agent.assert_called_once_with("market-insights", big_content, None)
         assert "compressed summary" in result["market-insights"]
         assert "summarized before analysis" in result["market-insights"]
 

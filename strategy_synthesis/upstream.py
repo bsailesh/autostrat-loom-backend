@@ -45,6 +45,22 @@ def extract_findings_for_synthesis(text: str) -> str:
     return "\n\n".join(bodies)
 
 
+def strip_findings_for_synthesis(text: str) -> str:
+    """`text` with every "## Findings for synthesis" section removed --
+    heading and body -- so the summarizer neither spends output on it nor
+    puts a paraphrase next to the verbatim copy reattached afterwards."""
+    out: list[str] = []
+    pos = 0
+    for m in _SECTION_START.finditer(text or ""):
+        if m.start() < pos:  # inside a section already removed
+            continue
+        out.append(text[pos:m.start()])
+        nxt = _NEXT_TOP_HEADING.search(text, m.end())
+        pos = nxt.start() if nxt else len(text)
+    out.append((text or "")[pos:])
+    return "".join(out)
+
+
 def reattach_findings(summary: str, findings: str) -> str:
     """A summarised pack with the section restored, verbatim, at the end."""
     if not findings:
