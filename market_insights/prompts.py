@@ -143,13 +143,14 @@ Output discipline:
   report"), no sign-off, no tool call. Do NOT print the report number or title
   anywhere (a heading is added for you). Start directly with the report's
   opening: the `## Governing Insight` for Report 1, the `## Key Insights` box for
-  the rest. One optional bold strap line may precede it, carrying only
+  the rest, and the bullet list alone for Report 0. One optional bold strap line may precede it, carrying only
   subject / evidence-base / date-window — not the report name.
 - Length: aim for roughly 700-1400 words. This is a consultant's briefing, not
   an encyclopedia. Cover every required section with the material findings that
   matter; do not pad, do not enumerate every data point in the brief. Depth of
   reasoning beats volume.
-- End the report with a section headed exactly `## Confidence Summary`.
+- End the report with a section headed exactly `## Confidence Summary` --
+  every report except Report 0, which has none.
 """
 
 
@@ -207,3 +208,42 @@ as UNKNOWN rather than guessing; no recommendations.
 {research_brief}
 ================ END RESEARCH BRIEF ================
 """
+
+
+# ---------------------------------------------------------------------------
+# Report 0 -- the Executive Summary, written last from the finished pack
+# ---------------------------------------------------------------------------
+
+
+def executive_summary_user_prompt(spec: ReportSpec, title: str, reports) -> str:
+    """Report 0's only input is the finished pack -- no research brief, no
+    evidence -- so every bullet has to be backed by something the reader can
+    find in the reports. `reports` is the run's other reports, each with
+    report_number, title and content."""
+    pack = "\n\n".join(
+        f"# Report {r.report_number} — {r.title}\n\n{r.content.strip()}" for r in reports
+    )
+    return f"""## Report to write
+
+Report {spec.number} — {title}
+
+This is the Executive Summary: written last, presented first. Follow the
+Executive Summary Requirement in the Consulting-Grade Output Standard exactly.
+For this report it overrides every other output instruction you have been
+given: no operating-tier or operating-state line, no Governing Insight, no Key
+Insights box, no "Validity:" line, no citations, no confidence tags, no
+classification labels, no "so what" sentences, no tables or exhibits, and no
+Confidence Summary.
+
+Must include: {spec.must_include}
+
+Your only input is the finished pack below. Every bullet must be supported by
+something in it; if the pack does not establish a point, leave the point out.
+Never mention report numbers or titles -- the reader sees this page before any
+of them.
+
+================ THE FINISHED PACK ================
+{pack}
+================ END OF PACK ================
+
+Write Report {spec.number} now: the bullet list only."""

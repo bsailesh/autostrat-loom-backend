@@ -179,14 +179,14 @@ class TestFindingsReachTheDecisionBrief:
         assert "do not turn any into a project" in prompt.lower()
 
     def test_no_findings_no_block(self):
-        spec = A5_REPORTS[0]
+        spec = next(s for s in A5_REPORTS if s.number == 1)
         assert "Upstream findings for synthesis" not in pass2_user_prompt(spec, "b", Pass1Output(), "c")
 
     def test_only_the_decision_brief_receives_them(self):
         agent = StrategySynthesisAgent(Settings(anthropic_api_key="test-key-not-real", model="claude-opus-5"))
         received = {}
 
-        def fake_pass2(spec, brief_text, pass1_out, computed_text, upstream_findings=None):
+        def fake_pass2(spec, brief_text, pass1_out, computed_text, upstream_findings=None, *, user_content=None):
             received[spec.number] = upstream_findings
             return f"# Report {spec.number}"
 

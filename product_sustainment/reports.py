@@ -21,7 +21,7 @@ from dataclasses import dataclass
 class ReportSpec:
     number: int
     title: str
-    opening: str  # "scqa" | "key_insights"
+    opening: str  # "scqa" | "key_insights" | "executive_summary"
     must_include: str
     exhibit: str
     computed: str | None = None  # results.computed_section kind, or "candidate_work"
@@ -43,10 +43,31 @@ named here rather than omitted silently:
   derived from evidence dates instead.
 """
 
+# Report 0 is written last, from the finished reports, and presented first.
+# report_number is stored and the export iterates it, so 0 rather than a
+# renumbering: every existing number stays stable.
+EXECUTIVE_SUMMARY_REPORT_NUMBER = 0
+
+
 REPORTS: list[ReportSpec] = [
     ReportSpec(
+        number=EXECUTIVE_SUMMARY_REPORT_NUMBER,
+        title="Executive Summary",
+        opening="executive_summary",
+        must_include=(
+            "A single Markdown bullet list of up to ten bullets and nothing else -- no "
+            "heading, no preamble, no closing line. Fewer is better; most packs produce "
+            "five or six. Draw only on the finished reports supplied. "
+            "A runout before its last-time-buy window, and any part whose exposure "
+            "reaches several LRUs -- the blast radius is what an executive would not "
+            "otherwise see. State what needs attention, never a selection or a "
+            "buy-versus-phase-out recommendation."
+        ),
+        exhibit="None. Bullets only -- no tables, exhibits or structured data.",
+    ),
+    ReportSpec(
         number=1,
-        title="Sustainment intelligence report",
+        title="Sustainment Landscape",
         opening="scqa",
         must_include=(
             "The operating-tier line first, then the Governing Insight. Then: top reliability risks; top "

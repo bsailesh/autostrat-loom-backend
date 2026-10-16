@@ -32,7 +32,7 @@ export default function Workspace() {
     },
     runningStateCopy: {
       title: "Assembling the decision brief",
-      body: "The agent is scoring the portfolio, computing capacity and scenarios, and writing all seven reports. You can leave this page and come back — the run keeps going.",
+      body: "The agent is scoring the portfolio, computing capacity and scenarios, and writing all seven reports, then the executive summary. You can leave this page and come back — the run keeps going.",
     },
   };
 

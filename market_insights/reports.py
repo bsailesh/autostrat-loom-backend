@@ -18,15 +18,35 @@ from dataclasses import dataclass
 class ReportSpec:
     number: int
     title: str
-    opening: str  # "scqa" or "key_insights"
+    opening: str  # "scqa" | "key_insights" | "executive_summary"
     must_include: str
     exhibit: str
 
 
+# Report 0 is written last, from the finished reports, and presented first.
+# report_number is stored and the export iterates it, so 0 rather than a
+# renumbering: every existing number stays stable.
+EXECUTIVE_SUMMARY_REPORT_NUMBER = 0
+
+
 REPORTS: list[ReportSpec] = [
     ReportSpec(
+        number=EXECUTIVE_SUMMARY_REPORT_NUMBER,
+        title="Executive Summary",
+        opening="executive_summary",
+        must_include=(
+            "A single Markdown bullet list of up to ten bullets and nothing else -- no "
+            "heading, no preamble, no closing line. Fewer is better; most packs produce "
+            "five or six. Draw only on the finished reports supplied. "
+            "This agent's findings are about the world, not the reader's own position, "
+            "so prefer what changes a decision: a competitor move, a structural shift, "
+            "a closing window. State what needs attention, never what to do about it."
+        ),
+        exhibit="None. Bullets only -- no tables, exhibits or structured data.",
+    ),
+    ReportSpec(
         number=1,
-        title="Executive Market Summary",
+        title="Market Summary",
         opening="scqa",
         must_include=(
             "Significant market developments; competitive activity; customer demand "
@@ -152,7 +172,7 @@ REPORTS: list[ReportSpec] = [
         title="Market Intelligence Digest",
         opening="key_insights",
         must_include=(
-            "A concise executive digest of: market observations; competitive "
+            "A concise digest of: market observations; competitive "
             "observations; customer observations; external market forces; knowledge "
             "gaps; data quality; confidence summary. NO recommendations."
         ),
@@ -181,4 +201,4 @@ REPORTS: list[ReportSpec] = [
     ),
 ]
 
-assert len(REPORTS) == 9
+assert len(REPORTS) == 10

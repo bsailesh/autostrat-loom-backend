@@ -24,15 +24,38 @@ from dataclasses import dataclass
 class ReportSpec:
     number: int
     title: str
-    opening: str  # "scqa" | "key_insights" | "plain"
+    opening: str  # "scqa" | "key_insights" | "plain" | "executive_summary"
     must_include: str
     exhibit: str
 
 
+# Report 0 is written last, from the finished reports, and presented first.
+# report_number is stored and the export iterates it, so 0 rather than a
+# renumbering: every existing number stays stable.
+EXECUTIVE_SUMMARY_REPORT_NUMBER = 0
+
+
 REPORTS: list[ReportSpec] = [
     ReportSpec(
+        number=EXECUTIVE_SUMMARY_REPORT_NUMBER,
+        title="Executive Summary",
+        opening="executive_summary",
+        must_include=(
+            "A single Markdown bullet list of up to ten bullets and nothing else -- no "
+            "heading, no preamble, no closing line. Fewer is better; most packs produce "
+            "five or six. Draw only on the finished reports supplied. "
+            "This is the page the decision-maker reads, and it draws on everything: the "
+            "ranking, the capacity position, objective coverage, candidates worth "
+            "scoping, and the upstream findings the reports carry. Where a bullet comes "
+            "from another agent's evidence, state it as a fact about the business, not "
+            "as 'Technology & Regulation found...'. Candidates are never ranked here "
+            "either."
+        ),
+        exhibit="None. Bullets only -- no tables, exhibits or structured data.",
+    ),
+    ReportSpec(
         number=1,
-        title="Strategic opportunity and project universe",
+        title="Project Universe",
         opening="key_insights",
         must_include=(
             "Two clearly separated sections. Committed projects (from the roadmap): "
@@ -132,7 +155,7 @@ REPORTS: list[ReportSpec] = [
         title="Decision brief",
         opening="scqa",
         must_include=(
-            "Executive-ready. Governing insight (Situation/Complication/Question/"
+            "Decision-ready. Governing insight (Situation/Complication/Question/"
             "Answer). Top committed projects and why they rank, with financial "
             "metric where supplied. What would change the decision: key "
             "assumptions, missing evidence, score sensitivities with thresholds "
@@ -149,4 +172,4 @@ REPORTS: list[ReportSpec] = [
     ),
 ]
 
-assert len(REPORTS) == 7
+assert len(REPORTS) == 8

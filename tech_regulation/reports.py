@@ -33,7 +33,7 @@ from dataclasses import dataclass
 class ReportSpec:
     number: int
     title: str
-    opening: str  # "scqa" | "key_insights"
+    opening: str  # "scqa" | "key_insights" | "executive_summary"
     must_include: str
     exhibit: str
 
@@ -73,10 +73,30 @@ named here rather than omitted silently:
 """
 
 
+# Report 0 is written last, from the finished reports, and presented first.
+# report_number is stored and the export iterates it, so 0 rather than a
+# renumbering: every existing number stays stable.
+EXECUTIVE_SUMMARY_REPORT_NUMBER = 0
+
+
 REPORTS: list[ReportSpec] = [
     ReportSpec(
+        number=EXECUTIVE_SUMMARY_REPORT_NUMBER,
+        title="Executive Summary",
+        opening="executive_summary",
+        must_include=(
+            "A single Markdown bullet list of up to ten bullets and nothing else -- no "
+            "heading, no preamble, no closing line. Fewer is better; most packs produce "
+            "five or six. Draw only on the finished reports supplied. "
+            "Dated obligations are the natural bullets. An undated standing exposure "
+            "earns one only when it is material. State what needs attention, never what "
+            "to do about it, and never a legal conclusion."
+        ),
+        exhibit="None. Bullets only -- no tables, exhibits or structured data.",
+    ),
+    ReportSpec(
         number=1,
-        title="Executive technology and regulatory intelligence summary",
+        title="Technology & Regulatory Landscape",
         opening="scqa",
         must_include=(
             "The operating state, stated in the very first line before anything else. "

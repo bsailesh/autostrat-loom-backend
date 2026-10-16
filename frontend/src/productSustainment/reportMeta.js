@@ -2,7 +2,8 @@
 // Report 9 (sustainment trend digest) is deferred -- it needs run-to-run
 // change detection -- so the order has a gap; Report 1 names the deferral.
 export const REPORT_LABELS = {
-  1: "Sustainment intelligence",
+  0: "Executive Summary",
+  1: "Sustainment landscape",
   2: "Obsolescence",
   3: "Field performance and failure trends",
   4: "Supplier and component risk",
@@ -13,7 +14,7 @@ export const REPORT_LABELS = {
   10: "Component runout and inventory bridge",
 };
 
-export const REPORT_ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 10];
+export const REPORT_ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
 export const RUNOUT_REPORT_NUMBER = 10;
 
 export function reportLabel(n) {

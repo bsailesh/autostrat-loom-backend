@@ -30,7 +30,7 @@ export default function Workspace() {
     },
     runningStateCopy: {
       title: "Researching the environment",
-      body: "The agent is searching for regulatory changes, standards revisions, supplier notices and technology evidence, then extracting candidate work and writing all nine reports. You can leave this page and come back — the run keeps going.",
+      body: "The agent is searching for regulatory changes, standards revisions, supplier notices and technology evidence, then extracting candidate work and writing all nine reports, then the executive summary. You can leave this page and come back — the run keeps going.",
     },
   };
 

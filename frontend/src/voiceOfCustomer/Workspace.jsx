@@ -30,7 +30,7 @@ export default function Workspace() {
     },
     runningStateCopy: {
       title: "Analysing customer evidence",
-      body: "The agent is researching the public context, then reading your evidence and writing all nine reports. You can leave this page and come back — the run keeps going.",
+      body: "The agent is researching the public context, then reading your evidence and writing all nine reports, then the executive summary. You can leave this page and come back — the run keeps going.",
     },
   };
 

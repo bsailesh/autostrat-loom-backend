@@ -4,7 +4,8 @@
 // order has a gap in it. Deliberate: renumbering would make this pack's
 // numbers disagree with the spec, and Report 1 names the deferral itself.
 export const REPORT_LABELS = {
-  1: "Executive summary",
+  0: "Executive Summary",
+  1: "Customer context summary",
   2: "Ranked pain points",
   3: "Feature requests",
   4: "Customer personas",
@@ -15,7 +16,7 @@ export const REPORT_LABELS = {
   10: "Customer insights matrix",
 };
 
-export const REPORT_ORDER = [1, 2, 3, 4, 5, 7, 8, 9, 10];
+export const REPORT_ORDER = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10];
 
 export function reportLabel(n) {
   return REPORT_LABELS[n] || `Report ${n}`;

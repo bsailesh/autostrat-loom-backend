@@ -129,7 +129,8 @@ highest published estimate will materially overstate reachable revenue."
 Every other report opens with a Key Insights box pulling that specific report's
 most materially important findings, unless its own instructions specify no
 special opening. The principal decision report uses the Governing Insight
-(SCQA) structure instead.
+(SCQA) structure instead. Report 0, the Executive Summary, is the one exception
+to both: it follows the Executive Summary Requirement below.
 
 **Maximum three insights. One sentence each. Each states its consequence.**
 
@@ -187,6 +188,94 @@ or plain-table-only output should be the exception, not the default. Do not
 fabricate a chart from data that does not exist. This requirement raises the bar
 on effort, not on invention. (Output medium here is Markdown text, so render
 visuals as Markdown tables, ASCII diagrams, or clearly-labelled text figures.)
+
+## Executive Summary Requirement (Report 0)
+
+Every pack opens with Report 0, the Executive Summary. It is written last, from
+the finished reports, and presented first. It exists for a reader who is not the
+analyst and wants to know what needs their attention without reading the pack.
+It states conclusions; the reports hold the evidence.
+
+**Up to ten bullets. Fewer is better — most packs should produce five or six.**
+Ten is a ceiling, not a target; a list of ten is skimmed, not acted on. Each
+bullet is one thing that needs the reader's attention, and possibly their
+action.
+
+The rules:
+- State the conclusion, not the reasoning. "Certification capacity has no slack
+  in FY27" — not "analysis of capacity data across five disciplines indicates
+  that certification is at 99.3% utilisation, suggesting…".
+- No sources, no citations, no confidence tags, no hedging. The proof is in the
+  reports. This page tells the reader whether they need to look.
+- Objective, not defensive. State what is true. Do not justify, qualify, or
+  pre-empt disagreement.
+- One sentence each. Two at the very most, where the consequence genuinely
+  needs its own sentence.
+- Plain language. No report numbers, no internal vocabulary, no references to
+  what the agent did or how, and no attribution to another agent. Where a
+  finding came from another agent's evidence, state it as a fact about the
+  business.
+- Every bullet must be supported by something in the finished reports. Nothing
+  appears here that the pack does not establish. This page carries no sources,
+  so the reader cannot check it themselves — a bullet with no backing is the
+  one failure that matters.
+- An agent that may not recommend states what needs attention, never what to do
+  about it. "The replacement decision is already late" is a fact; "begin
+  requalification now" is a directive.
+
+What earns a bullet, in priority order where there are more candidates than
+slots:
+1. Something is wrong, or about to be — a constraint that binds, a deadline
+   that is close, an exposure with no mitigation.
+2. Something contradicts what the reader believes. The most valuable bullet on
+   the page, when there is one.
+3. Something is dated and therefore schedulable — an obligation, a runout, a
+   window closing.
+4. A gap that blocks something — an objective with nothing against it, an
+   analysis unavailable for want of an input.
+Prefer one bullet that joins two findings over two that each state one.
+
+What does not earn a bullet: anything the reader already knows; scope framing,
+methodology, or what the pack contains; a finding that changes nothing; padding
+to reach ten. This is not a summary of the pack — a pack can contain a great
+deal that needs no attention at all.
+
+Where the pack cannot support a bullet: if the run is thin — unscoped, Tier 2,
+missing its central input — say so in one bullet and produce fewer. Do not
+manufacture bullets. A four-bullet executive summary on a thin run is honest;
+ten is not.
+
+What Report 0 is not, and what it is exempt from:
+- No Governing Insight. SCQA stays in the principal decision report; SCQA
+  reasons toward a conclusion, Report 0 states conclusions.
+- No Key Insights box and no "Validity:" line. Report 0 is not a key insights
+  block with a different name.
+- No tables, no exhibits, no structured data — bullets only. The Visual
+  Requirement does not apply.
+- No "so what" sentences, no FACT / OBSERVATION / INTERPRETATION labels, no
+  inline citations, and no Confidence Summary section.
+- No operating-tier or operating-state line; a thin run is stated as a bullet.
+
+Good:
+- "Certification capacity has no slack in FY27 — 99.3% committed, and it cannot
+  be contracted because the constraint is DER availability."
+- "Two projects, 323 engineering weeks between them, serve no stated objective."
+- "A single-sourced power device went end-of-life on 30 September. The
+  replacement decision is already late."
+- "Nothing in the portfolio addresses the retrofit margin objective, and the
+  only candidate that would has no effort estimate."
+
+Bad — reasoning rather than conclusion: "Analysis of the capacity data supplied
+across five engineering disciplines indicates that the certification bucket is
+operating at 99.3% of declared capacity, which suggests limited headroom for
+additional work."
+Bad — defensive: "Based on available evidence, which should be treated with
+appropriate caution given the absence of Tier 1 data, it appears that lead times
+may possibly be a competitive concern."
+Bad — internal vocabulary: "Report 3's bottleneck analysis found ELEC at 115.7%
+utilisation per the computed bucket utilisation table."
+Bad — no action implied: "The market for electromechanical actuation is
+growing."
 """
 
 

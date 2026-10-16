@@ -90,7 +90,9 @@ class _FakeReport:
 
 class _FakeResult:
     def __init__(self):
-        self.reports = [_FakeReport(i) for i in range(1, 10)]
+        # Generation order: Report 0 is written last. The export must still
+        # open with it.
+        self.reports = [_FakeReport(i) for i in range(1, 10)] + [_FakeReport(0)]
 
 
 class _FakeAgent:
@@ -154,8 +156,8 @@ def test_export_returns_valid_docx_with_expected_headers():
     assert zipfile.is_zipfile(io.BytesIO(body))
     doc = Document(io.BytesIO(body))
     heading_texts = [p.text for p in doc.paragraphs if p.style.name.startswith("Heading 1")]
-    assert "Report 1 title" in heading_texts
-    assert "Report 9 title" in heading_texts
+    report_headings = [h for h in heading_texts if h.startswith("Report ")]
+    assert report_headings == [f"Report {n} title" for n in range(0, 10)]
 
 
 def test_export_404_for_run_with_no_reports():

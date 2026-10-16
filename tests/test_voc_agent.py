@@ -103,19 +103,39 @@ def _run(agent, context, report_texts, *, names=None, only=None):
     return result, stream, create
 
 
+def _report_1():
+    return next(r for r in REPORTS if r.number == 1)
+
+
 class TestNineReports:
     def test_nine_reports_and_report_6_deferred(self):
-        assert [r.number for r in REPORTS] == [1, 2, 3, 4, 5, 7, 8, 9, 10]
+        assert [r.number for r in REPORTS] == [0, 1, 2, 3, 4, 5, 7, 8, 9, 10]
         assert "Report 6" in DEFERRED_REPORTS_NOTE
-        report1_instruction = prompts.synthesis_report_instruction(REPORTS[0], "Executive summary")
+        report1_instruction = prompts.synthesis_report_instruction(_report_1(), "Customer Context Summary")
         assert DEFERRED_REPORTS_NOTE in report1_instruction
 
     def test_one_streamed_call_per_report(self):
         agent = VoiceOfCustomerAgent(_settings())
-        texts = [GOOD_REPORT_1] + [f"body {n}" for n in range(2, 10)]
+        texts = [GOOD_REPORT_1] + [f"body {n}" for n in range(2, 10)] + ["- summary bullet"]
         result, stream, _ = _run(agent, _context(), texts)
-        assert stream.call_count == 9
-        assert [r.report_number for r in result.reports] == [1, 2, 3, 4, 5, 7, 8, 9, 10]
+        assert stream.call_count == 10
+        assert [r.report_number for r in result.reports] == [0, 1, 2, 3, 4, 5, 7, 8, 9, 10]
+
+    def test_executive_summary_is_written_last_from_the_finished_pack(self):
+        agent = VoiceOfCustomerAgent(_settings())
+        texts = [GOOD_REPORT_1] + [f"body {n}" for n in range(2, 10)] + ["- summary bullet"]
+        result, stream, _ = _run(agent, _context(), texts)
+
+        summary_prompt = stream.call_args_list[-1].kwargs["messages"][0]["content"]
+        assert isinstance(summary_prompt, str)  # no shared evidence prefix
+        assert "Executive Summary Requirement" in summary_prompt
+        assert "body 9" in summary_prompt and FINDINGS_FOR_SYNTHESIS_HEADING in summary_prompt
+        assert "## Customer evidence" not in summary_prompt
+        assert "## Research brief" not in summary_prompt
+
+        summary = result.reports[0]
+        assert summary.report_number == 0 and summary.content.startswith("- summary bullet")
+        assert summary.title == "External customer-context analysis — Executive Summary"
 
 
 class TestTier2Run:
@@ -130,7 +150,7 @@ class TestTier2Run:
     def test_tier_1_run_is_not_titled_external(self):
         agent = VoiceOfCustomerAgent(_settings())
         result, _, _ = _run(agent, _context(evidence=[_evidence_file()]), [GOOD_REPORT_1], only=[1])
-        assert result.reports[0].title == "Executive summary"
+        assert result.reports[0].title == "Customer Context Summary"
 
     def test_tier_line_is_in_every_report_prompt(self):
         agent = VoiceOfCustomerAgent(_settings())
@@ -159,8 +179,8 @@ class TestFindingsForSynthesis:
 
     def test_contract_requires_the_section_even_at_tier_2(self):
         assert "the section still appears" in standards.FINDINGS_FOR_SYNTHESIS
-        assert FINDINGS_FOR_SYNTHESIS_HEADING in REPORTS[0].must_include
-        assert "including Tier 2" in REPORTS[0].must_include
+        assert FINDINGS_FOR_SYNTHESIS_HEADING in _report_1().must_include
+        assert "including Tier 2" in _report_1().must_include
 
 
 class TestBeliefTestingContract:
@@ -171,7 +191,7 @@ class TestBeliefTestingContract:
         assert "Not found — no evidence supplied that could test it" in text
         assert "Not found — absent from the evidence supplied" in text
         for outcome in ("Corroborated", "Contradicted", "no evidence supplied", "absent from the evidence"):
-            assert outcome in REPORTS[0].must_include
+            assert outcome in _report_1().must_include
 
     def test_report_1_missing_belief_section_is_rejected(self):
         agent = VoiceOfCustomerAgent(_settings())

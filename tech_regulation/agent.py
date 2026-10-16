@@ -38,7 +38,7 @@ from pydantic import ValidationError
 
 from tech_regulation import prompts
 from tech_regulation.config import WEB_SEARCH_TOOL_TYPE, Settings
-from tech_regulation.reports import REPORTS, ReportSpec
+from tech_regulation.reports import EXECUTIVE_SUMMARY_REPORT_NUMBER, REPORTS, ReportSpec
 from tech_regulation.schemas import CandidateWorkItem, CandidateWorkOutput
 from tech_regulation.scoping import (
     ScopingEnvelope,
@@ -196,13 +196,30 @@ class TechRegulationAgent:
 
         envelope_text = render_envelope_text(envelope)
         specs = [s for s in REPORTS if only_reports is None or s.number in only_reports]
+        summary = next((s for s in specs if s.number == EXECUTIVE_SUMMARY_REPORT_NUMBER), None)
         reports: list[Report] = []
         for spec in specs:
+            if spec is summary:
+                continue
             title = report_title(state, spec.title)
             self._progress(f"Writing Report {spec.number} - {title}")
             reports.append(
                 self._synthesize_one(spec, title, envelope_text, brief, candidate_work, state_line)
             )
+
+        # Report 0 last, from the finished reports only; presented first.
+        if summary is not None:
+            if not reports:
+                raise ValueError("Report 0 is written from the other reports; request at least one.")
+            title = report_title(state, summary.title)
+            self._progress(f"Writing Report {summary.number} - {title}")
+            reports.append(
+                self._synthesize_one(
+                    summary, title, envelope_text, brief, candidate_work, state_line,
+                    user_content=prompts.executive_summary_user_prompt(summary, title, reports),
+                )
+            )
+            reports.sort(key=lambda r: r.report_number)
 
         return AgentRunResult(
             operating_state=state,
@@ -444,6 +461,8 @@ class TechRegulationAgent:
         research_brief: str,
         candidate_work: list[CandidateWorkItem],
         operating_state_line: str,
+        *,
+        user_content: str | None = None,
     ) -> Report:
         with self._client.messages.stream(
             model=self._model,
@@ -452,7 +471,7 @@ class TechRegulationAgent:
             messages=[
                 {
                     "role": "user",
-                    "content": prompts.synthesis_user_prompt(
+                    "content": user_content or prompts.synthesis_user_prompt(
                         spec,
                         envelope_text,
                         research_brief,

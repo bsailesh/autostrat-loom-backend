@@ -246,7 +246,7 @@ class TestStructuredCall:
 
 class TestTierAndReports:
     def test_nine_reports_report_9_deferred(self):
-        assert [r.number for r in REPORTS] == [1, 2, 3, 4, 5, 6, 7, 8, 10]
+        assert [r.number for r in REPORTS] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 10]
         from product_sustainment.reports import DEFERRED_REPORTS_NOTE
         assert "Report 9" in DEFERRED_REPORTS_NOTE
 
@@ -266,7 +266,7 @@ class TestTierAndReports:
 
 class TestNoBuyVersusPhaseOut:
     def test_report_specs_ask_for_options_not_decisions(self):
-        r1 = REPORTS[0].must_include
+        r1 = next(r for r in REPORTS if r.number == 1).must_include
         assert "## Options" in r1 and "never a buy-versus-phase-out" in r1
 
     def test_runout_report_uses_horizon_language(self):
@@ -282,8 +282,18 @@ class TestFullRun:
         report = MagicMock(content=[MagicMock(type="text", text="## Key Insights\n- x")], stop_reason="end_turn")
         responses = [_tool_response({"items": [_item()]})] + [report] * len(REPORTS)
         with patch.object(agent._client.messages, "create", return_value=research), \
-                patch.object(agent._client.messages, "stream", _streaming(*responses)):
+                patch.object(agent._client.messages, "stream", _streaming(*responses)) as stream:
             result = agent.run(_data(), today=TODAY, research_rounds=1)
+
+        # Report 0: written last, from the finished pack -- computed tables
+        # included, the research brief not -- and presented first.
+        assert [r.report_number for r in result.reports] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 10]
+        summary_prompt = stream.call_args_list[-1].kwargs["messages"][0]["content"]
+        assert isinstance(summary_prompt, str) and "Report 0 — Executive Summary" in summary_prompt
+        assert "## Component runout table (computed)" in summary_prompt
+        assert "RESEARCH BRIEF" not in summary_prompt
+        assert result.reports[0].content == "## Key Insights\n- x"
+
         by_number = {r.report_number: r.content for r in result.reports}
         assert "## Component runout table (computed)" in by_number[10]
         assert "| GaN-650 | level2 |" in by_number[10]

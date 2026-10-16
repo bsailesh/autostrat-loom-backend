@@ -71,7 +71,7 @@ export default function Workspace() {
       title: "Research in progress",
       body: (
         <>
-          The agent is doing live web research and writing all nine reports. A full run typically takes
+          The agent is doing live web research and writing all nine reports, then the executive summary. A full run typically takes
           <strong> 30–60 minutes</strong> — you can leave this page and come back; the run keeps going.
         </>
       ),
