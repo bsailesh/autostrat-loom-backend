@@ -49,6 +49,7 @@ from voice_of_customer.context import (
 )
 from voice_of_customer.reports import (
     BELIEF_TESTING_HEADING,
+    EXECUTIVE_SUMMARY_REPORT_NUMBER,
     FINDINGS_FOR_SYNTHESIS_HEADING,
     REPORTS,
     ReportSpec,
@@ -162,12 +163,24 @@ class VoiceOfCustomerAgent:
             tier_line, render_context_text(context, include_customers=True), evidence_text, brief
         )
         specs = [s for s in REPORTS if only_reports is None or s.number in only_reports]
+        summary = next((s for s in specs if s.number == EXECUTIVE_SUMMARY_REPORT_NUMBER), None)
+        # Report 0 last, from the finished reports only; presented first.
+        if summary is not None:
+            specs = [s for s in specs if s is not summary] + [summary]
+            if len(specs) == 1:
+                raise ValueError("Report 0 is written from the other reports; request at least one.")
         reports: list[Report] = []
         replacements: dict[int, int] = {}
         for spec in specs:
             title = report_title(tier, spec.title)
             self._progress(f"Writing Report {spec.number} - {title}")
-            report = self._synthesize_checked(spec, title, shared)
+            if spec is summary:
+                report = self._synthesize_one(
+                    spec, title, "",
+                    user_content=prompts.executive_summary_user_prompt(spec, title, reports),
+                )
+            else:
+                report = self._synthesize_checked(spec, title, shared)
             content, n = apply_attribution_check(report.content, names, context.attribution_policy)
             replacements[spec.number] = n
             reports.append(
@@ -185,6 +198,7 @@ class VoiceOfCustomerAgent:
         for r in reports:
             if r.report_number == 1:
                 r.content = f"{r.content}\n\n{note}"
+        reports.sort(key=lambda r: r.report_number)
 
         return AgentRunResult(
             operating_tier=tier,
@@ -315,21 +329,20 @@ class VoiceOfCustomerAgent:
             f"{', '.join(missing)}"
         )
 
-    def _synthesize_one(self, spec: ReportSpec, title: str, shared: str, correction: str = "") -> Report:
+    def _synthesize_one(
+        self, spec: ReportSpec, title: str, shared: str, correction: str = "", *,
+        user_content: str | None = None,
+    ) -> Report:
+        content = user_content or [
+            # Identical across all nine calls: one cached prefix.
+            {"type": "text", "text": shared, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": prompts.synthesis_report_instruction(spec, title) + correction},
+        ]
         with self._client.messages.stream(
             model=self._model,
             max_tokens=SYNTHESIS_MAX_TOKENS,
             system=prompts.synthesis_system_prompt(),
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        # Identical across all nine calls: one cached prefix.
-                        {"type": "text", "text": shared, "cache_control": {"type": "ephemeral"}},
-                        {"type": "text", "text": prompts.synthesis_report_instruction(spec, title) + correction},
-                    ],
-                }
-            ],
+            messages=[{"role": "user", "content": content}],
             thinking={"type": "adaptive"},
         ) as stream:
             final = stream.get_final_message()

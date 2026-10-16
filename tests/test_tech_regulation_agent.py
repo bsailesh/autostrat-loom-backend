@@ -361,13 +361,18 @@ class TestCandidateWorkIsGeneratedBeforeItIsNarrated:
         def fake_research(env, **kwargs):
             return ("RESEARCH BRIEF — evidence rows", [], [])
 
-        def fake_synthesize(spec, title, envelope_text, brief, candidate_work, state_line):
+        summary_prompts = []
+
+        def fake_synthesize(spec, title, envelope_text, brief, candidate_work, state_line, *, user_content=None):
             from tech_regulation.agent import Report
             from tech_regulation.prompts import synthesis_user_prompt
 
-            captured.append(
-                synthesis_user_prompt(spec, envelope_text, brief, candidate_work, state_line, title)
-            )
+            if user_content is not None:
+                summary_prompts.append((spec.number, user_content))
+            else:
+                captured.append(
+                    synthesis_user_prompt(spec, envelope_text, brief, candidate_work, state_line, title)
+                )
             return Report(spec.number, title, f"# body {spec.number}", "")
 
         with patch.object(agent, "research", side_effect=fake_research):
@@ -379,12 +384,18 @@ class TestCandidateWorkIsGeneratedBeforeItIsNarrated:
                 with patch.object(agent, "_synthesize_one", side_effect=fake_synthesize):
                     result = agent.run(envelope)
 
-        assert len(captured) == len(REPORTS)
+        assert len(captured) == len(REPORTS) - 1
         for prompt in captured:
             assert "TR-01" in prompt
             assert "2028-03-14" in prompt
             assert "narrate, do not re-derive" in prompt
         assert [r.report_number for r in result.reports] == [s.number for s in REPORTS]
+
+        # Report 0 is written last, from the finished reports and nothing else.
+        [(number, summary_prompt)] = summary_prompts
+        assert number == 0
+        assert "# Report 11 — " in summary_prompt and "# body 11" in summary_prompt
+        assert "RESEARCH BRIEF" not in summary_prompt
         assert [i.candidate_key for i in result.candidate_work] == ["TR-01"]
 
     def test_report_1_carries_the_deferred_reports_note(self):
@@ -400,7 +411,7 @@ class TestCandidateWorkIsGeneratedBeforeItIsNarrated:
 
     def test_nine_reports_with_9_and_10_absent_and_11_keeping_its_number(self):
         numbers = [s.number for s in REPORTS]
-        assert numbers == [1, 2, 3, 4, 5, 6, 7, 8, 11]
+        assert numbers == [0, 1, 2, 3, 4, 5, 6, 7, 8, 11]
 
     def test_unscoped_runs_prefix_every_report_title(self):
         agent = TechRegulationAgent(_settings())
@@ -409,7 +420,7 @@ class TestCandidateWorkIsGeneratedBeforeItIsNarrated:
                 with patch.object(
                     agent,
                     "_synthesize_one",
-                    side_effect=lambda spec, title, *a: __import__(
+                    side_effect=lambda spec, title, *a, **kw: __import__(
                         "tech_regulation.agent", fromlist=["Report"]
                     ).Report(spec.number, title, "body", ""),
                 ):

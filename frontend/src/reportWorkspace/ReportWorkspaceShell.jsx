@@ -134,7 +134,9 @@ function ReportWorkspaceContent({ adapter }) {
   const selectedSummary = useMemo(() => {
     if (!reports.length) return null;
     if (reportId) return reports.find((r) => r.id === reportId) || null;
-    return reports.find((r) => r.report_number === 1) || reports[0];
+    // Sorted by report_number, so this is Report 0 (the Executive Summary)
+    // wherever the run has one, and the lowest-numbered report otherwise.
+    return reports[0];
   }, [reports, reportId]);
 
   useEffect(() => {

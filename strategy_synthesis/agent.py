@@ -35,6 +35,7 @@ from strategy_synthesis import compute
 from strategy_synthesis.brief import DecisionBrief, render_brief_text
 from strategy_synthesis.config import Settings
 from strategy_synthesis.prompts import (
+    executive_summary_user_prompt,
     pass1_system_prompt,
     pass1_user_prompt,
     pass2_system_prompt,
@@ -42,7 +43,7 @@ from strategy_synthesis.prompts import (
     upstream_summary_system_prompt,
     upstream_summary_user_prompt,
 )
-from strategy_synthesis.reports import REPORTS, ReportSpec
+from strategy_synthesis.reports import EXECUTIVE_SUMMARY_REPORT_NUMBER, REPORTS, ReportSpec
 from strategy_synthesis.schemas import Pass1Candidate, Pass1Output
 
 logger = logging.getLogger(__name__)
@@ -378,6 +379,8 @@ class StrategySynthesisAgent:
         pass1_output: Pass1Output,
         computed_text: str,
         upstream_findings: dict[str, str] | None = None,
+        *,
+        user_content: str | None = None,
     ) -> str:
         with self._client.messages.stream(
             model=self._model,
@@ -386,7 +389,7 @@ class StrategySynthesisAgent:
             messages=[
                 {
                     "role": "user",
-                    "content": pass2_user_prompt(
+                    "content": user_content or pass2_user_prompt(
                         spec, brief_text, pass1_output, computed_text, upstream_findings
                     ),
                 }
@@ -455,7 +458,24 @@ class StrategySynthesisAgent:
                 ),
             )
             for spec in REPORTS
+            if spec.number != EXECUTIVE_SUMMARY_REPORT_NUMBER
         ]
+
+        # Report 0 last, from the seven finished reports only -- they already
+        # carry the ranking, capacity, coverage, candidates and upstream
+        # findings, with their evidence. Presented first.
+        summary = next(s for s in REPORTS if s.number == EXECUTIVE_SUMMARY_REPORT_NUMBER)
+        reports.append(
+            Report(
+                report_number=summary.number,
+                title=summary.title,
+                content=self._call_pass2_report(
+                    summary, brief_text, pass1_output, computed_text,
+                    user_content=executive_summary_user_prompt(summary, summary.title, reports),
+                ),
+            )
+        )
+        reports.sort(key=lambda r: r.report_number)
         return AgentRunResult(pass1_output=pass1_output, computed=computed, reports=reports)
 
     def _compute(self, brief: DecisionBrief, pass1_output: Pass1Output) -> ComputedResults:

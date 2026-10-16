@@ -29,7 +29,7 @@ from anthropic import Anthropic
 
 from market_insights.config import Settings, WEB_SEARCH_TOOL_TYPE
 from market_insights import prompts
-from market_insights.reports import REPORTS, ReportSpec
+from market_insights.reports import EXECUTIVE_SUMMARY_REPORT_NUMBER, REPORTS, ReportSpec
 
 
 # ---------------------------------------------------------------------------
@@ -138,10 +138,24 @@ class MarketInsightsAgent:
                 subject, max_searches=max_searches, rounds=research_rounds
             )
         specs = [s for s in REPORTS if only_reports is None or s.number in only_reports]
+        summary = next((s for s in specs if s.number == EXECUTIVE_SUMMARY_REPORT_NUMBER), None)
         reports: list[Report] = []
         for spec in specs:
+            if spec is summary:
+                continue
             self._progress(f"Synthesizing Report {spec.number} - {spec.title}")
             reports.append(self._synthesize_one(subject, spec, brief))
+
+        # Report 0 last, from the finished reports only; presented first.
+        if summary is not None:
+            if not reports:
+                raise ValueError("Report 0 is written from the other reports; request at least one.")
+            self._progress(f"Synthesizing Report {summary.number} - {summary.title}")
+            reports.append(self._synthesize_one(
+                subject, summary, brief,
+                user_content=prompts.executive_summary_user_prompt(summary, summary.title, reports),
+            ))
+            reports.sort(key=lambda r: r.report_number)
 
         return AgentRunResult(
             subject=subject,
@@ -299,7 +313,7 @@ class MarketInsightsAgent:
     _LEADING_TITLE_H1 = re.compile(r"\A#\s+Report\s+\d+\b[^\n]*\n+", re.IGNORECASE)
 
     def _synthesize_one(
-        self, subject: str, spec: ReportSpec, research_brief: str
+        self, subject: str, spec: ReportSpec, research_brief: str, *, user_content: str | None = None
     ) -> Report:
         with self._client.messages.stream(
             model=self._model,
@@ -307,7 +321,7 @@ class MarketInsightsAgent:
             system=prompts.synthesis_system_prompt(),
             messages=[{
                 "role": "user",
-                "content": prompts.synthesis_user_prompt(subject, spec, research_brief),
+                "content": user_content or prompts.synthesis_user_prompt(subject, spec, research_brief),
             }],
             thinking={"type": "adaptive"},
         ) as stream:

@@ -30,7 +30,7 @@ export default function Workspace() {
     },
     runningStateCopy: {
       title: "Computing runout and researching exposure",
-      body: "The platform computes every component's runout across the matrices, then the agent researches lifecycle notices and candidate alternates and writes all nine reports. You can leave this page and come back — the run keeps going.",
+      body: "The platform computes every component's runout across the matrices, then the agent researches lifecycle notices and candidate alternates and writes all nine reports, then the executive summary. You can leave this page and come back — the run keeps going.",
     },
   };
 

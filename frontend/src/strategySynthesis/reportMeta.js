@@ -4,7 +4,8 @@
 // Insights' convention, where report 1 is the SCQA one. Reports 2-6 have
 // neither heading ("plain").
 export const REPORT_LABELS = {
-  1: "Strategic opportunity",
+  0: "Executive Summary",
+  1: "Project universe",
   2: "Project strategic context",
   3: "Prioritised portfolio",
   4: "Mandatory / strategic / discretionary",
@@ -13,7 +14,7 @@ export const REPORT_LABELS = {
   7: "Decision brief",
 };
 
-export const REPORT_ORDER = [1, 2, 3, 4, 5, 6, 7];
+export const REPORT_ORDER = [0, 1, 2, 3, 4, 5, 6, 7];
 
 export function reportLabel(n) {
   return REPORT_LABELS[n] || `Report ${n}`;

@@ -310,8 +310,9 @@ class TestTwoPassBoundary:
 
         captured_pass2_prompts = []
 
-        def fake_call_pass2_report(spec, brief_text, pass1_out, computed_text, upstream_findings=None):
-            captured_pass2_prompts.append((spec, computed_text))
+        def fake_call_pass2_report(spec, brief_text, pass1_out, computed_text, upstream_findings=None,
+                                   *, user_content=None):
+            captured_pass2_prompts.append((spec, computed_text, user_content))
             return f"# Report {spec.number}"
 
         with patch.object(agent, "_call_pass1", return_value=pass1_output):
@@ -333,7 +334,7 @@ class TestTwoPassBoundary:
         assert finding.contractable == "no"
 
         # every Pass 2 call received the computed results as text
-        for spec, computed_text in prompts:
+        for spec, computed_text, _ in prompts:
             assert '"bucket_key": "CERT"' in computed_text
             assert "290" in computed_text  # the demand figure appears already-computed
 
@@ -387,11 +388,30 @@ class TestTwoPassBoundary:
 
         assert [c.key for c in result.computed.candidates_sorted] == ["C-01", "C-02"]
 
-    def test_all_seven_reports_are_produced(self):
+    def test_all_seven_reports_and_the_executive_summary_are_produced(self):
         brief = _bottleneck_brief()
         _, result, _ = self._run_with_mocks(brief)
         assert [r.report_number for r in result.reports] == [spec.number for spec in REPORTS]
-        assert len(result.reports) == 7
+        assert [r.report_number for r in result.reports] == [0, 1, 2, 3, 4, 5, 6, 7]
+
+    def test_executive_summary_is_written_last_from_the_finished_pack(self):
+        brief = _bottleneck_brief()
+        _, result, prompts = self._run_with_mocks(brief)
+
+        # Generated last, presented first.
+        assert [spec.number for spec, _, _ in prompts] == [1, 2, 3, 4, 5, 6, 7, 0]
+        assert result.reports[0].report_number == 0
+        assert result.reports[0].title == "Executive Summary"
+
+        # Its only input is the seven finished reports -- not the brief, the
+        # Pass 1 JSON or the computed results the other reports narrate.
+        summary_prompt = prompts[-1][2]
+        assert all(user_content is None for _, _, user_content in prompts[:-1])
+        for n in range(1, 8):
+            assert f"# Report {n} -- " in summary_prompt
+        assert "## Decision inputs brief" not in summary_prompt
+        assert "## Computed results" not in summary_prompt
+        assert "Executive Summary Requirement" in summary_prompt
 
 
 class TestSummarizeUpstreamAgent:

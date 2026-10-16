@@ -64,6 +64,11 @@ AGENT_TYPE = "strategy-synthesis"
 # Past this, one upstream agent's report pack is summarized before Pass 1 sees it.
 UPSTREAM_SUMMARIZE_THRESHOLD_CHARS = 150_000
 
+# Every agent's Report 0 (Executive Summary) restates its own pack as
+# conclusions with no sources. Pass 1 cites evidence, so it reads the reports
+# that carry the evidence and never the page that drops it.
+UPSTREAM_EXCLUDED_REPORT_NUMBER = 0
+
 # The background task can't use the request-scoped session (closed by the
 # time the task runs) -- same reason market_insights.py opens its own.
 SessionFactory = SessionLocal
@@ -222,6 +227,7 @@ def load_upstream_text(
         reports = (
             scoped_query(db, AgentReport, tenant)
             .filter(AgentReport.run_id == run_id)
+            .filter(AgentReport.report_number != UPSTREAM_EXCLUDED_REPORT_NUMBER)
             .order_by(AgentReport.report_number.asc())
         )
         for report in reports.yield_per(1):

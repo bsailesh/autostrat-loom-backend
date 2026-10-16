@@ -7,7 +7,8 @@
 // with the spec that describes them, and Report 1 names both deferrals in
 // its own text rather than leaving a reader to wonder.
 export const REPORT_LABELS = {
-  1: "Executive summary",
+  0: "Executive Summary",
+  1: "Tech & regulatory landscape",
   2: "Technology landscape",
   3: "Maturity ladder",
   4: "Evolution timeline",
@@ -18,7 +19,7 @@ export const REPORT_LABELS = {
   11: "Competitor technology",
 };
 
-export const REPORT_ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 11];
+export const REPORT_ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 8, 11];
 
 export function reportLabel(n) {
   return REPORT_LABELS[n] || `Report ${n}`;

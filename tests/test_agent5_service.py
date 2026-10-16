@@ -165,6 +165,18 @@ class TestLoadUpstreamText:
         result = load_upstream_text(db, tenant, MagicMock(), overrides={"market-insights": older.id})
         assert result["market-insights"] == "older"
 
+    def test_upstream_executive_summary_is_never_read(self, db, tenant):
+        """Report 0 restates the pack with no sources; Pass 1 reads the
+        reports that carry the evidence instead."""
+        run = self._make_upstream_run(db, tenant, "market-insights", ["evidenced report"])
+        db.add(AgentReport(tenant_id=tenant.id, run_id=run.id, report_number=0,
+                           title="Executive Summary", content="- unsourced conclusion"))
+        db.commit()
+
+        result = load_upstream_text(db, tenant, MagicMock(), overrides=None)
+
+        assert result["market-insights"] == "evidenced report"
+
     def test_strategy_synthesis_itself_is_never_treated_as_upstream(self, db, tenant):
         self._make_upstream_run(db, tenant, "strategy-synthesis", ["should never be upstream of itself"])
         result = load_upstream_text(db, tenant, MagicMock(), overrides=None)

@@ -33,7 +33,7 @@ from pydantic import ValidationError
 from product_sustainment import prompts, results
 from product_sustainment.compute import SustainmentResult, compute_sustainment
 from product_sustainment.config import WEB_SEARCH_TOOL_TYPE, Settings
-from product_sustainment.reports import REPORTS, ReportSpec
+from product_sustainment.reports import EXECUTIVE_SUMMARY_REPORT_NUMBER, REPORTS, ReportSpec
 from product_sustainment.schemas import CandidateWorkItem, ModelCandidateWorkOutput
 from product_sustainment.structure import (
     SustainmentData,
@@ -160,8 +160,11 @@ class ProductSustainmentAgent:
             json.dumps([i.model_dump() for i in kept], indent=1),
         )
         specs = [s for s in REPORTS if only_reports is None or s.number in only_reports]
+        summary = next((s for s in specs if s.number == EXECUTIVE_SUMMARY_REPORT_NUMBER), None)
         reports: list[Report] = []
         for spec in specs:
+            if spec is summary:
+                continue
             title = report_title(tier, spec.title)
             self._progress(f"Writing Report {spec.number} - {title}")
             text = self._synthesize_one(spec, title, shared)
@@ -170,6 +173,20 @@ class ProductSustainmentAgent:
             elif spec.computed:
                 text = f"{text}\n\n{results.computed_section(spec.computed, computation, data)}"
             reports.append(Report(spec.number, title, text, self._extract_confidence_summary(text)))
+
+        # Report 0 last, from the finished reports (computed tables included)
+        # only; presented first.
+        if summary is not None:
+            if not reports:
+                raise ValueError("Report 0 is written from the other reports; request at least one.")
+            title = report_title(tier, summary.title)
+            self._progress(f"Writing Report {summary.number} - {title}")
+            text = self._synthesize_one(
+                summary, title, shared,
+                user_content=prompts.executive_summary_user_prompt(summary, title, reports),
+            )
+            reports.append(Report(summary.number, title, text, ""))
+            reports.sort(key=lambda r: r.report_number)
 
         return AgentRunResult(
             operating_tier=tier,
@@ -308,12 +325,12 @@ class ProductSustainmentAgent:
     _CONF_HEADING = re.compile(r"\n#+\s*Confidence\s+Summary\b[^\n]*\n", re.IGNORECASE)
     _LEADING_TITLE_H1 = re.compile(r"\A#\s+Report\s+\d+\b[^\n]*\n+", re.IGNORECASE)
 
-    def _synthesize_one(self, spec: ReportSpec, title: str, shared: str) -> str:
+    def _synthesize_one(self, spec: ReportSpec, title: str, shared: str, *, user_content: str | None = None) -> str:
         with self._client.messages.stream(
             model=self._model,
             max_tokens=SYNTHESIS_MAX_TOKENS,
             system=prompts.synthesis_system_prompt(),
-            messages=[{"role": "user", "content": [
+            messages=[{"role": "user", "content": user_content or [
                 {"type": "text", "text": shared, "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": prompts.synthesis_report_instruction(spec, title)},
             ]}],

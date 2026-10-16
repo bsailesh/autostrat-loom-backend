@@ -286,3 +286,42 @@ Exhibit: {spec.exhibit}
 {payload}
 {deferred}
 Write Report {spec.number} now."""
+
+
+# ---------------------------------------------------------------------------
+# Report 0 -- the Executive Summary, written last from the finished pack
+# ---------------------------------------------------------------------------
+
+
+def executive_summary_user_prompt(spec: ReportSpec, title: str, reports) -> str:
+    """Report 0's only input is the finished pack -- no research brief, no
+    evidence -- so every bullet has to be backed by something the reader can
+    find in the reports. `reports` is the run's other reports, each with
+    report_number, title and content."""
+    pack = "\n\n".join(
+        f"# Report {r.report_number} — {r.title}\n\n{r.content.strip()}" for r in reports
+    )
+    return f"""## Report to write
+
+Report {spec.number} — {title}
+
+This is the Executive Summary: written last, presented first. Follow the
+Executive Summary Requirement in the Consulting-Grade Output Standard exactly.
+For this report it overrides every other output instruction you have been
+given: no operating-tier or operating-state line, no Governing Insight, no Key
+Insights box, no "Validity:" line, no citations, no confidence tags, no
+classification labels, no "so what" sentences, no tables or exhibits, and no
+Confidence Summary.
+
+Must include: {spec.must_include}
+
+Your only input is the finished pack below. Every bullet must be supported by
+something in it; if the pack does not establish a point, leave the point out.
+Never mention report numbers or titles -- the reader sees this page before any
+of them.
+
+================ THE FINISHED PACK ================
+{pack}
+================ END OF PACK ================
+
+Write Report {spec.number} now: the bullet list only."""
