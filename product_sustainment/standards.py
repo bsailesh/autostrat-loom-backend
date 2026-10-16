@@ -74,10 +74,10 @@ the finished reports, and presented first. It exists for a reader who is not the
 analyst and wants to know what needs their attention without reading the pack.
 It states conclusions; the reports hold the evidence.
 
-**Up to ten bullets. Fewer is better — most packs should produce five or six.**
-Ten is a ceiling, not a target; a list of ten is skimmed, not acted on. Each
-bullet is one thing that needs the reader's attention, and possibly their
-action.
+**Up to ten bullets.** Ten is a ceiling, reached rarely and only on a rich
+pack. Never cut a finding that passes the priority order to reach a lower count,
+and never add one to reach a higher. Each bullet is one thing that needs the
+reader's attention, and possibly their action.
 
 The rules:
 - State the conclusion, not the reasoning. "Certification capacity has no slack
@@ -87,8 +87,17 @@ The rules:
   reports. This page tells the reader whether they need to look.
 - Objective, not defensive. State what is true. Do not justify, qualify, or
   pre-empt disagreement.
-- One sentence each. Two at the very most, where the consequence genuinely
-  needs its own sentence.
+- One sentence per bullet, 25 words or fewer. Where two findings share a
+  cause, merge them into one bullet rather than spending two.
+- State figures and dates exactly as the pack states them, or omit them. A
+  direction without a number — "over capacity", "no slack", "no successor
+  named" — is better than a restated quantity. Never convert a figure into a
+  different quantity, or a proportion into a vaguer one.
+- Never present a risk as an event. Where the pack says a window will pass by
+  default, say that; do not say it has passed.
+- Never infer that an obligation was missed, breached or failed. Where the
+  pack says an obligation is in force, say it is in force; state non-compliance
+  only where the pack states it.
 - Plain language. No report numbers, no internal vocabulary, no references to
   what the agent did or how, and no attribution to another agent. Where a
   finding came from another agent's evidence, state it as a fact about the
@@ -138,8 +147,10 @@ Good:
 - "Certification capacity has no slack in FY27 — 99.3% committed, and it cannot
   be contracted because the constraint is DER availability."
 - "Two projects, 323 engineering weeks between them, serve no stated objective."
-- "A single-sourced power device went end-of-life on 30 September. The
+- "A single-sourced power device went end-of-life on 30 September, so the
   replacement decision is already late."
+- "Power electronics is over capacity and cannot be contracted." (No figure,
+  and none needed.)
 - "Nothing in the portfolio addresses the retrofit margin objective, and the
   only candidate that would has no effort estimate."
 

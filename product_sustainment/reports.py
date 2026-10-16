@@ -56,8 +56,8 @@ REPORTS: list[ReportSpec] = [
         opening="executive_summary",
         must_include=(
             "A single Markdown bullet list of up to ten bullets and nothing else -- no "
-            "heading, no preamble, no closing line. Fewer is better; most packs produce "
-            "five or six. Draw only on the finished reports supplied. "
+            "heading, no preamble, no closing line. One sentence per bullet, 25 words or "
+            "fewer. Draw only on the finished reports supplied. "
             "A runout before its last-time-buy window, and any part whose exposure "
             "reaches several LRUs -- the blast radius is what an executive would not "
             "otherwise see. State what needs attention, never a selection or a "

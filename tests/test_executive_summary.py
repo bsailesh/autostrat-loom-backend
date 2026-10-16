@@ -78,6 +78,12 @@ class TestTheRulesLandInEveryCopy:
         text = _section(mi_standards.CONSULTING_GRADE_OUTPUT_STANDARD)
         for rule in (
             "Up to ten bullets",
+            "25 words or fewer",
+            "Never cut a finding that passes the priority order",
+            "exactly as the pack states them, or omit them",
+            "Never present a risk as an event",
+            "Never infer that an obligation was missed, breached or failed",
+            "state non-compliance\n  only where the pack states it",
             "No sources, no citations, no confidence tags, no hedging",
             "Do not\nmanufacture bullets",
             "No Governing Insight",
